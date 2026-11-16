@@ -1,5 +1,6 @@
-"""Cloud Run HTTP server for the Biopharma CMC Continuous Facility Fit Agent."""
+"""Cloud Run HTTP server backed by persistent async SQLite WAL memory."""
 
+import asyncio
 import http.server
 import json
 import os
@@ -8,27 +9,30 @@ from typing import Any
 import urllib.parse
 
 from facility_fit_agent import cicd
+from facility_fit_agent import database
 from facility_fit_agent import memory
 from facility_fit_agent import models
 from facility_fit_agent import orchestrator
+from facility_fit_agent import prompts
 
 _STATIC_INDEX = pathlib.Path(__file__).parent / 'static' / 'index.html'
-_ORCHESTRATOR = orchestrator.FacilityFitOrchestrator()
-_SESSIONS: dict[str, memory.SessionWorkingContext] = {}
+_DB_BACKEND = database.create_memory_backend()
+_ORCHESTRATOR = orchestrator.FacilityFitOrchestrator(backend=_DB_BACKEND)
 
 
 def _get_session(session_id: str) -> memory.SessionWorkingContext:
-  """Returns or initializes stateful working memory for `session_id`."""
-  if session_id not in _SESSIONS:
-    _SESSIONS[session_id] = memory.SessionWorkingContext(session_id=session_id)
-  return _SESSIONS[session_id]
+  """Returns a session handle bound to the shared persistent DB backend."""
+  return memory.SessionWorkingContext(
+      session_id=session_id,
+      backend=_DB_BACKEND,
+  )
 
 
 class FacilityFitRequestHandler(http.server.BaseHTTPRequestHandler):
   """Serves the Interactive Cockpit UI and REST API endpoints on Cloud Run."""
 
   def do_GET(self) -> None:  # pylint: disable=invalid-name
-    """Handles UI, health, assessment, tools, CI/CD, and telemetry GET routes."""
+    """Handles UI, health, assessment, tools, prompt, CI/CD, & telemetry."""
     parsed = urllib.parse.urlparse(self.path)
     route = parsed.path
     query = urllib.parse.parse_qs(parsed.query)
@@ -43,14 +47,26 @@ class FacilityFitRequestHandler(http.server.BaseHTTPRequestHandler):
       return
 
     if route == '/healthz':
+      chain_ok = asyncio.run(_ORCHESTRATOR.audit_ledger.verify_chain_integrity())
       self._send_json(
           200,
           {
               'status': 'ok',
               'service': 'biopharma-cmc-continuous-facility-fit-agent',
               'gxp_mode': 'NON_GXP_DECISION_SUPPORT',
-              'ledger_chain_valid': (
-                  _ORCHESTRATOR.audit_ledger.verify_chain_integrity()
+              'persistent_backend': type(_DB_BACKEND).__name__,
+              'ledger_chain_valid': chain_ok,
+          },
+      )
+      return
+
+    if route == '/api/system-prompt':
+      self._send_json(
+          200,
+          {
+              'system_prompt': prompts.SYSTEM_PROMPT,
+              'estimated_tokens': prompts.estimate_token_count(
+                  prompts.SYSTEM_PROMPT
               ),
           },
       )
@@ -59,7 +75,11 @@ class FacilityFitRequestHandler(http.server.BaseHTTPRequestHandler):
     if route == '/api/tools':
       self._send_json(
           200,
-          {'tool_declarations': _ORCHESTRATOR.tool_registry.export_declarations()},
+          {
+              'tool_declarations': (
+                  _ORCHESTRATOR.tool_registry.export_declarations()
+              )
+          },
       )
       return
 
@@ -68,14 +88,14 @@ class FacilityFitRequestHandler(http.server.BaseHTTPRequestHandler):
       return
 
     if route == '/api/telemetry':
+      entries = asyncio.run(_ORCHESTRATOR.audit_ledger.entries())
+      chain_ok = asyncio.run(_ORCHESTRATOR.audit_ledger.verify_chain_integrity())
       self._send_json(
           200,
           {
               'telemetry': _ORCHESTRATOR.metrics.export_snapshot(),
-              'ledger_entries_count': len(_ORCHESTRATOR.audit_ledger.entries()),
-              'ledger_chain_valid': (
-                  _ORCHESTRATOR.audit_ledger.verify_chain_integrity()
-              ),
+              'ledger_entries_count': len(entries),
+              'ledger_chain_valid': chain_ok,
           },
       )
       return
@@ -83,25 +103,30 @@ class FacilityFitRequestHandler(http.server.BaseHTTPRequestHandler):
     if route == '/api/assess':
       process_id = query.get('process_id', ['PKM-AB4821-DS-V4.2'])[0]
       target_site = query.get('target_site', ['ALL'])[0]
+      session_id = query.get('session_id', [''])[0]
+      sess = _get_session(session_id) if session_id else None
       try:
         if target_site.upper() == 'ALL':
           reports = _ORCHESTRATOR.orchestrate_network_comparison(
-              process_id=process_id
+              process_id=process_id,
+              session_context=sess,
+          )
+          chain_ok = asyncio.run(
+              _ORCHESTRATOR.audit_ledger.verify_chain_integrity()
           )
           self._send_json(
               200,
               {
                   'process_id': process_id,
                   'reports': [rep.to_dict() for rep in reports],
-                  'ledger_chain_valid': (
-                      _ORCHESTRATOR.audit_ledger.verify_chain_integrity()
-                  ),
+                  'ledger_chain_valid': chain_ok,
               },
           )
         else:
           report = _ORCHESTRATOR.execute_assessment(
               process_id=process_id,
               target_site=target_site,
+              session_context=sess,
           )
           self._send_json(200, report.to_dict())
       except (KeyError, ValueError) as err:
@@ -180,11 +205,9 @@ class FacilityFitRequestHandler(http.server.BaseHTTPRequestHandler):
     self._send_json(404, {'error': f'Unknown POST endpoint: {route}'})
 
   def log_message(self, fmt: str, *args: Any) -> None:
-    """Suppresses noisy per-request stderr logs unless debugging."""
     del fmt, args
 
   def _read_json_body(self) -> dict[str, Any]:
-    """Parses incoming JSON request body safely."""
     content_len = int(self.headers.get('Content-Length', '0'))
     if content_len <= 0:
       return {}
@@ -192,7 +215,6 @@ class FacilityFitRequestHandler(http.server.BaseHTTPRequestHandler):
     return json.loads(raw) if raw.strip() else {}
 
   def _send_json(self, status_code: int, payload: dict[str, Any]) -> None:
-    """Serializes and writes UTF-8 JSON HTTP response."""
     encoded = json.dumps(payload, indent=2).encode('utf-8')
     self.send_response(status_code)
     self.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -208,7 +230,8 @@ def main() -> None:
       ('0.0.0.0', port), FacilityFitRequestHandler
   )
   print(
-      f'Biopharma CMC Continuous Facility Fit Agent listening on 0.0.0.0:{port}',
+      'Biopharma CMC Continuous Facility Fit Agent listening on '
+      f'0.0.0.0:{port}',
       flush=True,
   )
   server.serve_forever()

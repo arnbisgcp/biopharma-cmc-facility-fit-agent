@@ -1,17 +1,9 @@
-"""Tool & Interface Design layer for the Biopharma CMC Facility Fit Agent.
+"""Tool & Interface Design layer with runtime JSON-schema validation & async."""
 
-Implements the Tool & Interface Design architectural pillar:
-- Strictly typed connector `Protocol` contracts for Enterprise PKM, Plant MES,
-  Enterprise LIMS, and Enterprise Supply Planner.
-- Schema-validated `ToolDeclaration` metadata exportable as Vertex AI / Gemini
-  ADK `FunctionDeclaration` contracts.
-- Hard GxP Read-Only Operational Boundary guardrails (`PlantMesReadOnlyTool`)
-  that deterministically block any shop-floor setpoint write or SOP override.
-- Deterministic Bioprocess Physics Tool wrappers around `calculations.py`.
-"""
-
+import asyncio
 from collections.abc import Callable, Mapping
 import dataclasses
+import inspect
 from typing import Any, Protocol
 
 from facility_fit_agent import calculations
@@ -45,14 +37,43 @@ class ToolDeclaration:
   read_only_gxp_safe: bool
   parameters_json_schema: dict[str, Any]
   returns_description: str
+  timeout_seconds: float = 5.0
 
   def to_dict(self) -> dict[str, Any]:
     """Serializes the tool interface contract to JSON."""
     return dataclasses.asdict(self)
 
 
+def validate_tool_arguments(
+    declaration: ToolDeclaration, kwargs: Mapping[str, Any]
+) -> None:
+  """Validates required keys and JSON Schema primitive types at runtime."""
+  schema = declaration.parameters_json_schema
+  required = schema.get('required', [])
+  for req_key in required:
+    if req_key not in kwargs or kwargs[req_key] is None:
+      raise ValueError(
+          f'Tool {declaration.name!r} missing required parameter {req_key!r}.'
+      )
+  props = schema.get('properties', {})
+  for key, val in kwargs.items():
+    if key not in props:
+      raise ValueError(
+          f'Tool {declaration.name!r} received undeclared parameter {key!r}.'
+      )
+    expected_type = props[key].get('type')
+    if expected_type == 'string' and not isinstance(val, str):
+      raise TypeError(
+          f'Parameter {key!r} on {declaration.name!r} must be string.'
+      )
+    if expected_type == 'number' and not isinstance(val, (int, float)):
+      raise TypeError(
+          f'Parameter {key!r} on {declaration.name!r} must be numeric.'
+      )
+
+
 class CatalogPkmConnector:
-  """Default in-memory Enterprise PKM connector backed by verified catalog."""
+  """Default Enterprise PKM connector backed by verified recipe catalog."""
 
   def __init__(
       self,
@@ -75,7 +96,7 @@ class CatalogPkmConnector:
 
 
 class CatalogMesConnector:
-  """Default read-only Plant MES / Enterprise LIMS / Enterprise Supply Planner site connector."""
+  """Default read-only Plant MES / Enterprise LIMS / Supply connector."""
 
   def __init__(
       self,
@@ -97,7 +118,7 @@ class CatalogMesConnector:
 
 
 class ToolRegistry:
-  """Central registry enforcing schemas, tracing, and GxP write-locks."""
+  """Central registry enforcing schemas, timeouts, tracing, & GxP write-locks."""
 
   def __init__(
       self,
@@ -133,9 +154,11 @@ class ToolRegistry:
       tracer: observability.AgentTracer | None = None,
       **kwargs: Any,
   ) -> Any:
-    """Invokes a registered tool inside an observability trace span."""
+    """Invokes a registered tool synchronously with schema validation."""
     if tool_name not in self._handlers:
       raise KeyError(f'Unregistered tool {tool_name!r}.')
+    declaration = self._declarations[tool_name]
+    validate_tool_arguments(declaration, kwargs)
     handler = self._handlers[tool_name]
 
     if tracer is None:
@@ -149,6 +172,40 @@ class ToolRegistry:
         attributes={'tool.name': tool_name, 'tool.arg_keys': sorted(kwargs)},
     ):
       return handler(**kwargs)
+
+  async def invoke_async(
+      self,
+      tool_name: str,
+      tracer: observability.AgentTracer | None = None,
+      **kwargs: Any,
+  ) -> Any:
+    """Invokes a registered tool asynchronously with timeout & span tracing."""
+    if tool_name not in self._handlers:
+      raise KeyError(f'Unregistered tool {tool_name!r}.')
+    declaration = self._declarations[tool_name]
+    validate_tool_arguments(declaration, kwargs)
+    handler = self._handlers[tool_name]
+
+    async def _run_call() -> Any:
+      if inspect.iscoroutinefunction(handler):
+        return await handler(**kwargs)
+      return await asyncio.to_thread(handler, **kwargs)
+
+    if tracer is None:
+      return await asyncio.wait_for(
+          _run_call(), timeout=declaration.timeout_seconds
+      )
+
+    tracer.metrics.increment('tool_invocations_total')
+    tracer.metrics.increment(f'tool.{tool_name}.calls')
+    async with tracer.start_async_span(
+        span_name=f'tool:{tool_name}',
+        stage='TOOL_INVOCATION',
+        attributes={'tool.name': tool_name, 'tool.arg_keys': sorted(kwargs)},
+    ):
+      return await asyncio.wait_for(
+          _run_call(), timeout=declaration.timeout_seconds
+      )
 
   def _register_builtin_tools(self) -> None:
     """Registers PKM, MES, LIMS, Physics, and GxP Write-Lock guard tools."""
@@ -175,7 +232,7 @@ class ToolRegistry:
             name='discover_plant_mes_site_envelope',
             description=(
                 'Retrieves verified bioreactor, chromatography, TFF, clean '
-                'utility, Enterprise LIMS, and Enterprise Supply Planner envelopes for a site.'
+                'utility, Enterprise LIMS, and supply envelopes for a site.'
             ),
             read_only_gxp_safe=True,
             parameters_json_schema={
@@ -226,9 +283,7 @@ class ToolRegistry:
                 },
                 'required': ['recipe', 'chrom_skid'],
             },
-            returns_description=(
-                'Tuple of ChromatographyCalcOutput, TffCalcOutput.'
-            ),
+            returns_description='Tuple of ChromatographyCalcOutput, TffCalcOutput.',
         ),
         self._compute_downstream_sizing,
     )
@@ -259,7 +314,6 @@ class ToolRegistry:
       recipe: models.ProcessRecipe,
       bioreactor: models.BioreactorAsset,
   ) -> dict[str, float]:
-    """Executes deterministic upstream hydrodynamic transport calculations."""
     effective_vol = min(
         recipe.target_batch_volume_liters,
         bioreactor.max_working_volume_liters,
@@ -310,7 +364,6 @@ class ToolRegistry:
       recipe: models.ProcessRecipe,
       chrom_skid: models.ChromatographySkidAsset,
   ) -> tuple[calculations.ChromatographyCalcOutput, calculations.TffCalcOutput]:
-    """Executes deterministic chromatography and UF/DF sizing equations."""
     chrom = calculations.calculate_chromatography_sizing(recipe, chrom_skid)
     tff = calculations.calculate_tff_sizing(recipe)
     return chrom, tff
@@ -320,9 +373,8 @@ class ToolRegistry:
       mes_tag: str,
       proposed_setpoint: float,
   ) -> None:
-    """Deterministically rejects any shop-floor write attempt."""
     raise models.GxpBoundaryViolationError(
-        'GxP Operational Boundary Violation: Autonomous shop-floor write to '
+        f'GxP Operational Boundary Violation: Autonomous shop-floor write to '
         f'Plant MES tag {mes_tag!r} (setpoint={proposed_setpoint}) is '
-        'strictly prohibited. Agent operates in Non-GxP Decision-Support Mode.'
+        f'strictly prohibited. Agent operates in Non-GxP Decision-Support Mode.'
     )

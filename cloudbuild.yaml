@@ -1,0 +1,30 @@
+steps:
+  - name: "python:3.13-slim"
+    id: "unit-and-cicd-qualification-gates"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - "./scripts/run_ci_checks.sh"
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: "build-container-image"
+    args:
+      - "build"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/cmc-agents/biopharma-facility-fit-agent:${SHORT_SHA}"
+      - "."
+
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    id: "deploy-cloud-run"
+    entrypoint: "gcloud"
+    args:
+      - "run"
+      - "deploy"
+      - "biopharma-facility-fit-agent"
+      - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/cmc-agents/biopharma-facility-fit-agent:${SHORT_SHA}"
+      - "--region=${_REGION}"
+      - "--platform=managed"
+      - "--quiet"
+
+substitutions:
+  _REGION: "us-central1"

@@ -1,25 +1,21 @@
-"""Orchestration & Logic layer executing the 5-stage GxP reasoning DAG.
+"""Asynchronous 5-stage GxP orchestration DAG with persistent memory & prompts."""
 
-Implements the Orchestration & Logic architectural pillar:
-- Explicit 5-stage deterministic state machine (`OrchestrationStage`)
-coordinating
-  Enterprise PKM ingestion, Plant MES / LIMS discovery, physics tool execution,
-  episodic CAPA precedent recall, and GxP Human-in-the-Loop gating.
-- Multi-site portfolio fan-out orchestration (`orchestrate_network_comparison`).
-- Stateful counterfactual sensitivity simulation (`simulate_what_if`).
-"""
-
-from collections.abc import Mapping, Sequence
+import asyncio
+from collections.abc import Coroutine, Mapping, Sequence
 import dataclasses
 import datetime
 import enum
-from typing import Any
+from typing import Any, TypeVar
 
 from facility_fit_agent import agent
+from facility_fit_agent import database
 from facility_fit_agent import memory
 from facility_fit_agent import models
 from facility_fit_agent import observability
+from facility_fit_agent import prompts
 from facility_fit_agent import tools
+
+_T = TypeVar('_T')
 
 _MANDATORY_REPORT_KEYS = frozenset({
     'assessment_id',
@@ -29,6 +25,19 @@ _MANDATORY_REPORT_KEYS = frozenset({
     'discrepancy_matrix',
     'mitigation_recommendations',
 })
+
+
+def _run_sync(coro: Coroutine[Any, Any, _T]) -> _T:
+  """Runs an async workflow safely from synchronous CLI or HTTP entrypoints."""
+  try:
+    asyncio.get_running_loop()
+  except RuntimeError:
+    return asyncio.run(coro)
+  loop = asyncio.new_event_loop()
+  try:
+    return loop.run_until_complete(coro)
+  finally:
+    loop.close()
 
 
 class OrchestrationStage(str, enum.Enum):
@@ -53,30 +62,43 @@ def validate_report_contract(payload: Mapping[str, Any]) -> None:
 
 
 class FacilityFitOrchestrator:
-  """Stateful DAG orchestrator integrating Tools, Memory, and Tracing."""
+  """Async DAG orchestrator integrating Tools, Persistent DB Memory, & Prompts."""
 
   def __init__(
       self,
+      backend: database.PersistentMemoryBackend | None = None,
       tool_registry: tools.ToolRegistry | None = None,
       precedent_store: memory.EpisodicPrecedentStore | None = None,
       audit_ledger: memory.AssessmentAuditLedger | None = None,
       metrics: observability.MetricsRegistry | None = None,
+      prompt_assembler: prompts.PromptContextAssembler | None = None,
       timestamp_provider: datetime.datetime | None = None,
   ):
-    """Initializes orchestrator with injectable collaborators."""
+    """Initializes orchestrator sharing a persistent database backend."""
+    shared_backend = backend or database.create_memory_backend()
+    self._backend = shared_backend
     self._tools = tool_registry or tools.ToolRegistry()
-    self._precedents = precedent_store or memory.EpisodicPrecedentStore()
-    self._ledger = (
-        audit_ledger
-        if audit_ledger is not None
-        else memory.AssessmentAuditLedger()
+    self._precedents = precedent_store or memory.EpisodicPrecedentStore(
+        backend=shared_backend
+    )
+    self._ledger = audit_ledger or memory.AssessmentAuditLedger(
+        backend=shared_backend
     )
     self._metrics = (
         metrics if metrics is not None else observability.MetricsRegistry()
     )
+    self._prompt_assembler = prompt_assembler or prompts.PromptContextAssembler(
+        system_prompt=prompts.SYSTEM_PROMPT
+    )
+    self._advisor = prompts.GeminiConstitutionalAdvisor()
     self._agent = agent.BiopharmaFacilityFitAgent(
         timestamp_provider=timestamp_provider
     )
+
+  @property
+  def backend(self) -> database.PersistentMemoryBackend:
+    """Returns the shared persistent database backend."""
+    return self._backend
 
   @property
   def tool_registry(self) -> tools.ToolRegistry:
@@ -85,7 +107,7 @@ class FacilityFitOrchestrator:
 
   @property
   def audit_ledger(self) -> memory.AssessmentAuditLedger:
-    """Returns the ALCOA+ hash-chained `AssessmentAuditLedger`."""
+    """Returns the persistent ALCOA+ `AssessmentAuditLedger`."""
     return self._ledger
 
   @property
@@ -93,79 +115,124 @@ class FacilityFitOrchestrator:
     """Returns the shared `MetricsRegistry`."""
     return self._metrics
 
-  def execute_assessment(
+  async def execute_assessment_async(
       self,
       process_id: str,
       target_site: str,
       session_context: memory.SessionWorkingContext | None = None,
       sponsor_signoff: str = '',
   ) -> models.FacilityFitAssessmentReport:
-    """Executes all 5 DAG stages with full span tracing and memory recall."""
+    """Asynchronously executes all 5 DAG stages with persistent DB memory."""
     tracer = observability.AgentTracer(metrics=self._metrics)
     self._metrics.increment('assessments_executed_total')
 
-    with tracer.start_span(
+    async with tracer.start_async_span(
         span_name='workflow:facility_fit_assessment',
         stage='ORCHESTRATOR_ROOT',
         attributes={'process_id': process_id, 'target_site': target_site},
     ) as root_span:
-      with tracer.start_span(
+      async with tracer.start_async_span(
           span_name='stage_1_ingest_and_normalize',
           stage=OrchestrationStage.STAGE_1_INGEST_AND_NORMALIZE.value,
       ):
-        recipe: models.ProcessRecipe = self._tools.invoke(
-            'ingest_enterprise_pkm_recipe',
-            tracer=tracer,
-            process_id=process_id,
-        )
-        if session_context is not None and session_context.active_overrides:
-          recipe = recipe.with_cpp_overrides(session_context.active_overrides)
+        if session_context is not None:
+          recipe, overrides = await asyncio.gather(
+              self._tools.invoke_async(
+                  'ingest_enterprise_pkm_recipe',
+                  tracer=tracer,
+                  process_id=process_id,
+              ),
+              session_context.get_active_overrides(),
+          )
+          if overrides:
+            recipe = recipe.with_cpp_overrides(overrides)
+        else:
+          recipe = await self._tools.invoke_async(
+              'ingest_enterprise_pkm_recipe',
+              tracer=tracer,
+              process_id=process_id,
+          )
 
-      with tracer.start_span(
+      async with tracer.start_async_span(
           span_name='stage_2_asset_and_lims_discovery',
           stage=OrchestrationStage.STAGE_2_ASSET_AND_LIMS_DISCOVERY.value,
       ):
-        facility: models.FacilityRegistry = self._tools.invoke(
-            'discover_plant_mes_site_envelope',
-            tracer=tracer,
-            site_code=target_site,
+        facility, _ = await asyncio.gather(
+            self._tools.invoke_async(
+                'discover_plant_mes_site_envelope',
+                tracer=tracer,
+                site_code=target_site,
+            ),
+            self._precedents.ensure_seeded(),
         )
 
-      with tracer.start_span(
+      async with tracer.start_async_span(
           span_name='stage_3_deterministic_physics',
           stage=OrchestrationStage.STAGE_3_DETERMINISTIC_PHYSICS.value,
       ):
-        self._tools.invoke(
-            'compute_bioreactor_hydrodynamics',
-            tracer=tracer,
-            recipe=recipe,
-            bioreactor=facility.bioreactors[0],
+        await asyncio.gather(
+            self._tools.invoke_async(
+                'compute_bioreactor_hydrodynamics',
+                tracer=tracer,
+                recipe=recipe,
+                bioreactor=facility.bioreactors[0],
+            ),
+            self._tools.invoke_async(
+                'compute_downstream_sizing',
+                tracer=tracer,
+                recipe=recipe,
+                chrom_skid=facility.chromatography_skids[0],
+            ),
         )
-        self._tools.invoke(
-            'compute_downstream_sizing',
-            tracer=tracer,
-            recipe=recipe,
-            chrom_skid=facility.chromatography_skids[0],
+        base_report = await asyncio.to_thread(
+            self._agent.evaluate, recipe, facility
         )
-        base_report = self._agent.evaluate(recipe, facility)
 
-      with tracer.start_span(
+      async with tracer.start_async_span(
           span_name='stage_4_risk_and_precedent_recall',
           stage=OrchestrationStage.STAGE_4_RISK_AND_PRECEDENT_RECALL.value,
       ) as recall_span:
-        matched_precedents = self._precedents.retrieve_precedents(
+        matched_precedents = await self._precedents.retrieve_precedents(
             site_code=target_site,
             discrepancies=base_report.discrepancy_matrix,
+        )
+        task_desc = (
+            f'Evaluate {process_id} at {target_site} and synthesize GxP '
+            'mitigation guidance grounded in deterministic tool outputs.'
+        )
+        if session_context is not None:
+          llm_prompt = await session_context.build_llm_prompt_context(
+              user_task=task_desc,
+              precedents=matched_precedents,
+              tool_declarations=self._tools.export_declarations(),
+          )
+        else:
+          llm_prompt = self._prompt_assembler.build_messages(
+              user_task=task_desc,
+              compacted_memory_window={'session_id': 'stateless'},
+              precedents=matched_precedents,
+              tool_declarations=self._tools.export_declarations(),
+          )
+        advisory_note = await asyncio.to_thread(
+            self._advisor.generate_sync, llm_prompt
         )
         recall_span.set_attribute(
             'memory.matched_precedents', len(matched_precedents)
         )
+        recall_span.set_attribute(
+            'llm.system_prompt_enforced', True
+        )
+        recall_span.set_attribute(
+            'llm.prompt_tokens',
+            llm_prompt['token_usage_estimate']['total_tokens'],
+        )
+        recall_span.set_attribute('llm.advisory_note', advisory_note)
         enriched_report = dataclasses.replace(
             base_report,
             matched_precedents=matched_precedents,
         )
 
-      with tracer.start_span(
+      async with tracer.start_async_span(
           span_name='stage_5_gxp_hitl_and_audit_commit',
           stage=OrchestrationStage.STAGE_5_GXP_HITL_AND_AUDIT_COMMIT.value,
       ):
@@ -175,8 +242,7 @@ class FacilityFitOrchestrator:
           )
         if enriched_report.hitl_signoff_gate.persistence_locked:
           self._metrics.increment('hitl_locks_triggered_total')
-        preliminary_dict = enriched_report.to_dict()
-        validate_report_contract(preliminary_dict)
+        validate_report_contract(enriched_report.to_dict())
 
       root_span.set_attribute(
           'fit.normalized_index', enriched_report.normalized_fit_index
@@ -189,26 +255,30 @@ class FacilityFitOrchestrator:
     final_report = dataclasses.replace(
         enriched_report, observability=obs_bundle
     )
-    self._ledger.append(final_report, obs_bundle.payload_sha256)
+    await self._ledger.append(final_report, obs_bundle.payload_sha256)
 
     if session_context is not None:
-      session_context.record_turn_summary(
+      await session_context.record_turn_summary(
           f'{process_id}@{target_site} -> '
           f'index={final_report.normalized_fit_index:.2f} '
           f'({final_report.overall_fit_status.value})'
       )
     return final_report
 
-  def orchestrate_network_comparison(
+  async def orchestrate_network_comparison_async(
       self,
       process_id: str,
-      site_codes: Sequence[str] = ('ALPHA_EU_HUB', 'BETA_US_CAMPUS', 'GAMMA_US_PLANT'),
+      site_codes: Sequence[str] = (
+          'ALPHA_EU_HUB',
+          'BETA_US_CAMPUS',
+          'GAMMA_US_PLANT',
+      ),
       session_context: memory.SessionWorkingContext | None = None,
       sponsor_signoff: str = '',
   ) -> tuple[models.FacilityFitAssessmentReport, ...]:
-    """Fans out assessments across multiple receiving sites and ranks fit."""
-    reports = [
-        self.execute_assessment(
+    """Concurrently evaluates multiple receiving sites via `asyncio.gather`."""
+    tasks = [
+        self.execute_assessment_async(
             process_id=process_id,
             target_site=site_code,
             session_context=session_context,
@@ -216,37 +286,44 @@ class FacilityFitOrchestrator:
         )
         for site_code in site_codes
     ]
-    return tuple(reports)
+    results = await asyncio.gather(*tasks)
+    return tuple(results)
 
-  def simulate_what_if(
+  async def simulate_what_if_async(
       self,
       session_context: memory.SessionWorkingContext,
       process_id: str,
       target_site: str,
       cpp_overrides: Mapping[str, float],
   ) -> dict[str, Any]:
-    """Runs stateful before/after counterfactual CPP sensitivity simulation."""
-    baseline = self.execute_assessment(
+    """Runs async stateful counterfactual CPP simulation backed by SQLite/DB."""
+    baseline = await self.execute_assessment_async(
         process_id=process_id,
         target_site=target_site,
     )
-    base_recipe = self._tools.invoke(
+    base_recipe: models.ProcessRecipe = await self._tools.invoke_async(
         'ingest_enterprise_pkm_recipe',
         process_id=process_id,
     )
     for param_name, new_val in cpp_overrides.items():
-      base_recipe = session_context.apply_cpp_override(
+      base_recipe = await session_context.apply_cpp_override(
           base_recipe,
           parameter_name=param_name,
           new_value=new_val,
       )
-    simulated = self.execute_assessment(
+    simulated = await self.execute_assessment_async(
         process_id=process_id,
         target_site=target_site,
         session_context=session_context,
     )
+    llm_context = await session_context.build_llm_prompt_context(
+        user_task=f'Explain sensitivity delta for {process_id} at {target_site}',
+        precedents=simulated.matched_precedents,
+        tool_declarations=self._tools.export_declarations(),
+    )
     return {
-        'session_window': session_context.to_compact_context_window(),
+        'session_window': await session_context.to_compact_context_window(),
+        'llm_prompt_telemetry': llm_context['token_usage_estimate'],
         'baseline_fit_index': baseline.normalized_fit_index,
         'simulated_fit_index': simulated.normalized_fit_index,
         'fit_index_delta': round(
@@ -260,3 +337,58 @@ class FacilityFitOrchestrator:
         ],
         'simulated_report': simulated.to_dict(),
     }
+
+  def execute_assessment(
+      self,
+      process_id: str,
+      target_site: str,
+      session_context: memory.SessionWorkingContext | None = None,
+      sponsor_signoff: str = '',
+  ) -> models.FacilityFitAssessmentReport:
+    """Synchronous convenience wrapper around `execute_assessment_async`."""
+    return _run_sync(
+        self.execute_assessment_async(
+            process_id=process_id,
+            target_site=target_site,
+            session_context=session_context,
+            sponsor_signoff=sponsor_signoff,
+        )
+    )
+
+  def orchestrate_network_comparison(
+      self,
+      process_id: str,
+      site_codes: Sequence[str] = (
+          'ALPHA_EU_HUB',
+          'BETA_US_CAMPUS',
+          'GAMMA_US_PLANT',
+      ),
+      session_context: memory.SessionWorkingContext | None = None,
+      sponsor_signoff: str = '',
+  ) -> tuple[models.FacilityFitAssessmentReport, ...]:
+    """Synchronous wrapper around `orchestrate_network_comparison_async`."""
+    return _run_sync(
+        self.orchestrate_network_comparison_async(
+            process_id=process_id,
+            site_codes=site_codes,
+            session_context=session_context,
+            sponsor_signoff=sponsor_signoff,
+        )
+    )
+
+  def simulate_what_if(
+      self,
+      session_context: memory.SessionWorkingContext,
+      process_id: str,
+      target_site: str,
+      cpp_overrides: Mapping[str, float],
+  ) -> dict[str, Any]:
+    """Synchronous wrapper around `simulate_what_if_async`."""
+    return _run_sync(
+        self.simulate_what_if_async(
+            session_context=session_context,
+            process_id=process_id,
+            target_site=target_site,
+            cpp_overrides=cpp_overrides,
+        )
+    )

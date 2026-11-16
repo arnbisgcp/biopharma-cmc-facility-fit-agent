@@ -1,26 +1,31 @@
-"""Context & Memory layer for short-term session state and episodic CAPAs.
+"""Asynchronous, persistent Context & Memory layer with LLM prompt assembly.
 
-Implements the Context & Memory architectural pillar:
-- `SessionWorkingContext`: Short-term conversational and "what-if" CPP
-  simulation state with bounded token-budget context compaction.
-- `EpisodicPrecedentStore`: Long-term institutional memory of validated Biopharma
-  cross-site tech-transfer precedents and CAPAs to ground mitigations.
-- `AssessmentAuditLedger`: Append-only, SHA-256 hash-chained ledger of
-  facility fit evaluations and human sponsor HITL signoffs (ALCOA+ compliant).
+Implements all four dimensions of the Context & Memory architectural pillar:
+1. Constitutional LLM System Prompt integration (`prompts.SYSTEM_PROMPT` and
+   `SessionWorkingContext.build_llm_prompt_context`).
+2. Persistent Database Storage (`database.PersistentMemoryBackend` backed by
+   WAL-mode SQLite on disk or Google Cloud Firestore — zero ephemeral in-memory
+   list/dict state).
+3. Asynchronous Non-Blocking Operations (`async def` / `await` across session
+   writes, override tracking, precedent queries, and ledger commits).
+4. Token-Budget Rolling Summary Compaction (`compact_history` summarizing
+   evicted turns into persistent `rolling_summary` storage).
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 import dataclasses
 import hashlib
 import json
 from typing import Any
 
+from facility_fit_agent import database
 from facility_fit_agent import models
+from facility_fit_agent import prompts
 
 
 @dataclasses.dataclass(frozen=True)
 class ParameterOverrideEntry:
-  """Records a single user 'what-if' CPP parameter override in session state."""
+  """Immutable representation of a persisted CPP override audit event."""
 
   parameter_name: str
   previous_value: float
@@ -28,105 +33,173 @@ class ParameterOverrideEntry:
   rationale: str
 
 
-class SessionWorkingContext:
-  """Manages short-term working state and context-window compaction."""
+@dataclasses.dataclass(frozen=True)
+class LedgerEntry:
+  """Tamper-evident hash-chained ALCOA+ assessment ledger record."""
 
-  def __init__(self, session_id: str, operator_id: str = 'msat_engineer'):
-    """Initializes short-term working memory for an interactive session."""
+  sequence_index: int
+  assessment_id: str
+  process_id: str
+  target_site: str
+  signoff_status: str
+  payload_sha256: str
+  previous_entry_hash: str
+  entry_hash: str
+
+
+class SessionWorkingContext:
+  """Async persistent session memory with rolling-summary token compaction."""
+
+  def __init__(
+      self,
+      session_id: str,
+      operator_id: str = 'msat_engineer',
+      backend: database.PersistentMemoryBackend | None = None,
+      max_token_budget: int = 1200,
+      keep_recent_turns: int = 5,
+      prompt_assembler: prompts.PromptContextAssembler | None = None,
+  ):
+    """Initializes session bound to a persistent async database backend."""
     self.session_id = session_id
     self.operator_id = operator_id
-    self._cpp_overrides: dict[str, float] = {}
-    self._override_history: list[ParameterOverrideEntry] = []
-    self._recent_summaries: list[str] = []
+    self._backend = backend or database.create_memory_backend()
+    self._max_token_budget = max_token_budget
+    self._keep_recent_turns = keep_recent_turns
+    self._prompt_assembler = prompt_assembler or prompts.PromptContextAssembler(
+        system_prompt=prompts.SYSTEM_PROMPT
+    )
 
-  @property
-  def active_overrides(self) -> dict[str, float]:
-    """Returns copy of active CPP parameter overrides."""
-    return dict(self._cpp_overrides)
+  async def initialize(self) -> None:
+    """Ensures persistent schema and session row exist in the database."""
+    await self._backend.ensure_session(self.session_id, self.operator_id)
 
-  def apply_cpp_override(
+  async def get_active_overrides(self) -> dict[str, float]:
+    """Asynchronously loads persisted CPP overrides for this session."""
+    await self.initialize()
+    return await self._backend.get_active_cpp_overrides(self.session_id)
+
+  async def apply_cpp_override(
       self,
       recipe: models.ProcessRecipe,
       parameter_name: str,
       new_value: float,
       rationale: str = 'Interactive what-if sensitivity check',
   ) -> models.ProcessRecipe:
-    """Applies a typed numeric CPP override and records delta in memory."""
+    """Persists a validated numeric CPP override to the database asynchronously."""
     if not hasattr(recipe, parameter_name):
       raise AttributeError(
           f'ProcessRecipe has no CPP field named {parameter_name!r}.'
       )
+    await self.initialize()
     prev_val = float(getattr(recipe, parameter_name))
-    self._cpp_overrides[parameter_name] = new_value
-    self._override_history.append(
-        ParameterOverrideEntry(
-            parameter_name=parameter_name,
-            previous_value=prev_val,
-            new_value=new_value,
-            rationale=rationale,
-        )
+    await self._backend.record_cpp_override(
+        session_id=self.session_id,
+        parameter_name=parameter_name,
+        previous_value=prev_val,
+        new_value=new_value,
+        rationale=rationale,
     )
+    turn_note = (
+        f'CPP override applied: {parameter_name} {prev_val} -> {new_value} '
+        f'({rationale})'
+    )
+    await self.record_turn_summary(turn_note, role='user')
     return recipe.with_cpp_overrides({parameter_name: new_value})
 
-  def record_turn_summary(self, summary_line: str) -> None:
-    """Appends a concise turn outcome to short-term working memory."""
-    self._recent_summaries.append(summary_line)
-
-  def to_compact_context_window(
-      self, max_recent_turns: int = 5
+  async def record_turn_summary(
+      self,
+      summary_line: str,
+      role: str = 'assistant',
   ) -> dict[str, Any]:
-    """Compacts working context to a bounded token-safe summary dictionary."""
-    return {
-        'session_id': self.session_id,
-        'operator_id': self.operator_id,
-        'active_cpp_overrides': dict(self._cpp_overrides),
-        'override_count': len(self._override_history),
-        'recent_override_deltas': [
-            dataclasses.asdict(entry)
-            for entry in self._override_history[-max_recent_turns:]
-        ],
-        'recent_turn_summaries': self._recent_summaries[-max_recent_turns:],
-    }
+    """Persists a turn to the database and triggers async token compaction."""
+    await self.initialize()
+    est_tokens = prompts.estimate_token_count(summary_line)
+    await self._backend.append_session_turn(
+        session_id=self.session_id,
+        role=role,
+        content=summary_line,
+        estimated_tokens=est_tokens,
+    )
+    return await self.compact_history()
+
+  async def compact_history(self) -> dict[str, Any]:
+    """Compacts older database turns into a persistent rolling summary."""
+    await self.initialize()
+    return await self._backend.compact_session_turns(
+        session_id=self.session_id,
+        max_token_budget=self._max_token_budget,
+        keep_recent_turns=self._keep_recent_turns,
+    )
+
+  async def to_compact_context_window(
+      self, max_recent_turns: int | None = None
+  ) -> dict[str, Any]:
+    """Asynchronously fetches compacted rolling summary + recent turns from DB."""
+    await self.initialize()
+    limit = max_recent_turns or self._keep_recent_turns
+    return await self._backend.get_session_window(
+        session_id=self.session_id,
+        max_recent_turns=limit,
+    )
+
+  async def build_llm_prompt_context(
+      self,
+      user_task: str,
+      precedents: Sequence[models.HistoricalPrecedent] = (),
+      tool_declarations: Sequence[Mapping[str, Any]] = (),
+  ) -> dict[str, Any]:
+    """Assembles `SYSTEM_PROMPT` + compacted DB memory into LLM messages."""
+    await self.compact_history()
+    window = await self.to_compact_context_window()
+    return self._prompt_assembler.build_messages(
+        user_task=user_task,
+        compacted_memory_window=window,
+        precedents=precedents,
+        tool_declarations=tool_declarations,
+    )
 
 
 class EpisodicPrecedentStore:
-  """Long-term institutional memory of cross-site Biopharma tech-transfer CAPAs."""
+  """Async persistent store of validated cross-site tech-transfer CAPAs."""
 
   def __init__(
       self,
-      precedents: Sequence[models.HistoricalPrecedent] | None = None,
+      backend: database.PersistentMemoryBackend | None = None,
+      seed_precedents: Sequence[models.HistoricalPrecedent] | None = None,
   ):
-    """Initializes store with verified historical Biopharma CMC precedents."""
-    self._precedents = (
-        tuple(precedents)
-        if precedents is not None
+    """Initializes episodic store backed by persistent database storage."""
+    self._backend = backend or database.create_memory_backend()
+    self._seed_items = (
+        tuple(seed_precedents)
+        if seed_precedents is not None
         else self._default_precedents()
     )
+    self._seeded = False
 
-  def retrieve_precedents(
+  async def ensure_seeded(self) -> None:
+    """Idempotently seeds institutional CAPA precedents into persistent DB."""
+    if self._seeded:
+      return
+    await self._backend.upsert_precedents(self._seed_items)
+    self._seeded = True
+
+  async def retrieve_precedents(
       self,
       site_code: str,
       discrepancies: Sequence[models.DiscrepancyItem],
   ) -> tuple[models.HistoricalPrecedent, ...]:
-    """Retrieves historical CAPA precedents matching discrepancy categories."""
-    tokens: set[str] = set()
+    """Asynchronously queries persistent precedent table by discrepancy type."""
+    await self.ensure_seeded()
+    tokens: list[str] = []
     for item in discrepancies:
       parts = item.discrepancy_id.split('-')
-      if len(parts) >= 3:
-        tokens.add(parts[2])
-
-    matched: list[models.HistoricalPrecedent] = []
-    for prec in self._precedents:
-      pattern_match = prec.discrepancy_pattern in tokens
-      site_match = prec.site_code in (site_code, 'NETWORK_WIDE')
-      if pattern_match and site_match:
-        matched.append(prec)
-      elif pattern_match and prec not in matched:
-        matched.append(prec)
-    return tuple(matched)
+      if len(parts) >= 3 and parts[2] not in tokens:
+        tokens.append(parts[2])
+    rows = await self._backend.query_precedents(site_code, tokens)
+    return tuple(rows)
 
   def _default_precedents(self) -> tuple[models.HistoricalPrecedent, ...]:
-    """Returns curated Biopharma GBO/BRDS historical tech-transfer precedents."""
+    """Returns baseline institutional tech-transfer CAPA records for seeding."""
     return (
         models.HistoricalPrecedent(
             precedent_id='PREC-ALP-2025-014',
@@ -136,8 +209,8 @@ class EpisodicPrecedentStore:
             discrepancy_pattern='LIM',
             validated_resolution=(
                 'Executed parallel ICH Q2(R2) intermediate precision co-val '
-                'in Alpha Hub Enterprise LIMS with Central R&D reference lab bridge '
-                'disposition for PPQ Lot 1.'
+                'in Alpha Hub Enterprise LIMS with Central R&D reference lab '
+                'bridge disposition for PPQ Lot 1.'
             ),
             realized_lead_time_weeks=5,
         ),
@@ -197,69 +270,64 @@ class EpisodicPrecedentStore:
     )
 
 
-@dataclasses.dataclass(frozen=True)
-class LedgerEntry:
-  """Tamper-evident hash-chained ALCOA+ assessment ledger record."""
-
-  sequence_index: int
-  assessment_id: str
-  process_id: str
-  target_site: str
-  signoff_status: str
-  payload_sha256: str
-  previous_entry_hash: str
-  entry_hash: str
-
-
 class AssessmentAuditLedger:
-  """Append-only cryptographic ledger persisting assessments and signoffs."""
+  """Async persistent ALCOA+ SHA-256 hash-chained assessment ledger."""
 
-  def __init__(self):
-    """Initializes an empty hash-chained ledger."""
-    self._entries: list[LedgerEntry] = []
+  def __init__(
+      self,
+      backend: database.PersistentMemoryBackend | None = None,
+  ):
+    """Initializes audit ledger backed by durable SQLite / Cloud storage."""
+    self._backend = backend or database.create_memory_backend()
 
-  def append(
+  async def append(
       self,
       report: models.FacilityFitAssessmentReport,
       payload_sha256: str,
   ) -> LedgerEntry:
-    """Appends an assessment state transition and computes chain hash."""
-    prev_hash = self._entries[-1].entry_hash if self._entries else 'GENESIS_0'
-    seq_idx = len(self._entries)
-    material = json.dumps(
-        {
-            'seq': seq_idx,
-            'assessment_id': report.assessment_id,
-            'process_id': report.process_id,
-            'target_site': report.target_site,
-            'signoff_status': report.hitl_signoff_gate.signoff_status,
-            'payload_sha256': payload_sha256,
-            'prev': prev_hash,
-        },
-        sort_keys=True,
-    ).encode('utf-8')
-    entry_hash = hashlib.sha256(material).hexdigest()
-    entry = LedgerEntry(
-        sequence_index=seq_idx,
+    """Atomically persists a hash-chained assessment state transition."""
+    serialized_report = json.dumps(report.to_dict(), sort_keys=True)
+    record = await self._backend.append_ledger_entry(
         assessment_id=report.assessment_id,
         process_id=report.process_id,
         target_site=report.target_site,
         signoff_status=report.hitl_signoff_gate.signoff_status,
         payload_sha256=payload_sha256,
-        previous_entry_hash=prev_hash,
-        entry_hash=entry_hash,
+        report_json=serialized_report,
     )
-    self._entries.append(entry)
-    return entry
+    return LedgerEntry(
+        sequence_index=int(record['sequence_index']),
+        assessment_id=str(record['assessment_id']),
+        process_id=str(record['process_id']),
+        target_site=str(record['target_site']),
+        signoff_status=str(record['signoff_status']),
+        payload_sha256=str(record['payload_sha256']),
+        previous_entry_hash=str(record['previous_entry_hash']),
+        entry_hash=str(record['entry_hash']),
+    )
 
-  def entries(self) -> tuple[LedgerEntry, ...]:
-    """Returns immutable snapshot of all ledger entries."""
-    return tuple(self._entries)
+  async def entries(self) -> tuple[LedgerEntry, ...]:
+    """Asynchronously reads all persisted ledger records in sequence order."""
+    raw_rows = await self._backend.list_ledger_entries()
+    return tuple(
+        LedgerEntry(
+            sequence_index=int(r['sequence_index']),
+            assessment_id=str(r['assessment_id']),
+            process_id=str(r['process_id']),
+            target_site=str(r['target_site']),
+            signoff_status=str(r['signoff_status']),
+            payload_sha256=str(r['payload_sha256']),
+            previous_entry_hash=str(r['previous_entry_hash']),
+            entry_hash=str(r['entry_hash']),
+        )
+        for r in raw_rows
+    )
 
-  def verify_chain_integrity(self) -> bool:
-    """Recomputes every SHA-256 link to verify zero ledger tampering."""
+  async def verify_chain_integrity(self) -> bool:
+    """Asynchronously verifies every persisted SHA-256 link from GENESIS_0."""
+    persisted = await self.entries()
     expected_prev = 'GENESIS_0'
-    for entry in self._entries:
+    for entry in persisted:
       if entry.previous_entry_hash != expected_prev:
         return False
       material = json.dumps(

@@ -1,23 +1,14 @@
-"""Observability, OpenTelemetry-style tracing, and ALCOA+ digest utilities.
-
-Implements the Observability & Tracing architectural pillar:
-- Hierarchical distributed span tracing (`AgentTracer`) across every
-  orchestration node and deterministic tool invocation.
-- Structured operational counters and latency telemetry (`MetricsRegistry`).
-- Deterministic SHA-256 canonical payload hashing for 21 CFR Part 11 / ALCOA+
-  non-GxP decision-support auditability.
-"""
+"""Observability, OpenTelemetry-style async tracing, and ALCOA+ digests."""
 
 import collections
-from collections.abc import Iterator, Mapping
+from collections.abc import AsyncIterator, Iterator, Mapping
 import contextlib
 import hashlib
 import json
+import logging
 import time
 from typing import Any
 import uuid
-
-import logging
 
 from facility_fit_agent import models
 
@@ -32,7 +23,7 @@ def compute_canonical_sha256(payload: Mapping[str, Any]) -> str:
 
 
 class MetricsRegistry:
-  """In-memory structured counter and latency collector for agent telemetry."""
+  """Structured counter and latency percentile collector for agent telemetry."""
 
   def __init__(self):
     """Initializes zeroed operational counters and latency buckets."""
@@ -52,14 +43,16 @@ class MetricsRegistry:
     return self._counters.get(metric_name, 0)
 
   def export_snapshot(self) -> dict[str, Any]:
-    """Exports counters and p50/max latency summaries as JSON-ready dict."""
+    """Exports counters and p50/p95/max latency summaries as JSON-ready dict."""
     latency_summary: dict[str, dict[str, float]] = {}
     for op_name, samples in self._latencies_ms.items():
       ordered = sorted(samples)
       mid_idx = len(ordered) // 2
+      p95_idx = min(len(ordered) - 1, int(len(ordered) * 0.95))
       latency_summary[op_name] = {
           'count': float(len(ordered)),
           'p50_ms': ordered[mid_idx],
+          'p95_ms': ordered[p95_idx],
           'max_ms': ordered[-1],
       }
     return {
@@ -69,7 +62,7 @@ class MetricsRegistry:
 
 
 class ActiveSpanHandle:
-  """Mutable handle yielded while an execution span is in flight."""
+  """Mutable handle yielded while a sync or async execution span is active."""
 
   def __init__(self, attributes: dict[str, Any]):
     """Initializes the active span handle."""
@@ -81,7 +74,7 @@ class ActiveSpanHandle:
 
 
 class AgentTracer:
-  """Records hierarchical OpenTelemetry-compatible execution spans."""
+  """Records hierarchical sync and async OpenTelemetry-compatible spans."""
 
   def __init__(
       self,
@@ -111,16 +104,10 @@ class AgentTracer:
       stage: str,
       attributes: Mapping[str, Any] | None = None,
   ) -> Iterator[ActiveSpanHandle]:
-    """Records a timed execution span with parent correlation and status."""
+    """Records a synchronous timed execution span."""
     span_id = uuid.uuid4().hex[:12]
     parent_id = self._active_stack[-1] if self._active_stack else 'root'
-    span_attrs: dict[str, Any] = {
-        'gxp.mode': 'NON_GXP_DECISION_SUPPORT',
-        'gxp.mes_write_lock': True,
-    }
-    if attributes is not None:
-      span_attrs.update(attributes)
-
+    span_attrs = self._init_attrs(attributes)
     handle = ActiveSpanHandle(span_attrs)
     self._active_stack.append(span_id)
     start_ns = time.perf_counter_ns()
@@ -138,21 +125,75 @@ class AgentTracer:
       )
       raise
     finally:
-      elapsed_ms = (time.perf_counter_ns() - start_ns) / 1.0e6
-      self._active_stack.pop()
-      self._metrics.record_latency_ms(span_name, elapsed_ms)
-      self._spans.append(
-          models.TraceSpanRecord(
-              trace_id=self._trace_id,
-              span_id=span_id,
-              parent_span_id=parent_id,
-              span_name=span_name,
-              stage=stage,
-              status=status,
-              duration_ms=round(elapsed_ms, 3),
-              attributes=span_attrs,
-          )
+      self._finalize_span(span_id, parent_id, span_name, stage, status, start_ns, span_attrs)
+
+  @contextlib.asynccontextmanager
+  async def start_async_span(
+      self,
+      span_name: str,
+      stage: str,
+      attributes: Mapping[str, Any] | None = None,
+  ) -> AsyncIterator[ActiveSpanHandle]:
+    """Records an asynchronous timed execution span."""
+    span_id = uuid.uuid4().hex[:12]
+    parent_id = self._active_stack[-1] if self._active_stack else 'root'
+    span_attrs = self._init_attrs(attributes)
+    handle = ActiveSpanHandle(span_attrs)
+    self._active_stack.append(span_id)
+    start_ns = time.perf_counter_ns()
+    status = 'OK'
+    try:
+      yield handle
+    except Exception as exc:
+      status = f'ERROR:{type(exc).__name__}'
+      span_attrs['error.type'] = type(exc).__name__
+      logging.warning(
+          'Async trace %s span %s failed with %s',
+          self._trace_id,
+          span_name,
+          type(exc).__name__,
       )
+      raise
+    finally:
+      self._finalize_span(span_id, parent_id, span_name, stage, status, start_ns, span_attrs)
+
+  def _init_attrs(
+      self, attributes: Mapping[str, Any] | None
+  ) -> dict[str, Any]:
+    span_attrs: dict[str, Any] = {
+        'gxp.mode': 'NON_GXP_DECISION_SUPPORT',
+        'gxp.mes_write_lock': True,
+    }
+    if attributes is not None:
+      span_attrs.update(attributes)
+    return span_attrs
+
+  def _finalize_span(
+      self,
+      span_id: str,
+      parent_id: str,
+      span_name: str,
+      stage: str,
+      status: str,
+      start_ns: int,
+      span_attrs: dict[str, Any],
+  ) -> None:
+    elapsed_ms = (time.perf_counter_ns() - start_ns) / 1.0e6
+    if self._active_stack and self._active_stack[-1] == span_id:
+      self._active_stack.pop()
+    self._metrics.record_latency_ms(span_name, elapsed_ms)
+    self._spans.append(
+        models.TraceSpanRecord(
+            trace_id=self._trace_id,
+            span_id=span_id,
+            parent_span_id=parent_id,
+            span_name=span_name,
+            stage=stage,
+            status=status,
+            duration_ms=round(elapsed_ms, 3),
+            attributes=span_attrs,
+        )
+    )
 
   def build_bundle(
       self,

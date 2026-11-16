@@ -40,11 +40,11 @@ flowchart LR
 
 | Architectural Pillar | Module | Implementation Highlights |
 | :--- | :--- | :--- |
-| **1. Tool & Interface Design** | `facility_fit_agent/tools.py` | Read-only `Protocol` interfaces, ADK / Vertex AI `ToolDeclaration` JSON Schema exports (`/api/tools`), and guarded `actuate_shop_floor_mes_setpoint` write-lock raising `GxpBoundaryViolationError`. |
-| **2. Context & Memory** | `facility_fit_agent/memory.py` | `SessionWorkingContext` for counterfactual CPP overrides, `EpisodicPrecedentStore` for historical tech-transfer CAPA recall, and `AssessmentAuditLedger` SHA-256 hash-chaining. |
-| **3. Orchestration & Logic** | `facility_fit_agent/orchestrator.py`, `facility_fit_agent/agent.py` | Deterministic 5-stage state machine (`STAGE_1_INGEST_AND_NORMALIZE` through `STAGE_5_GXP_HITL_AND_AUDIT_COMMIT`), multi-site fan-out, and `simulate_what_if`. |
-| **4. Observability & Tracing** | `facility_fit_agent/observability.py` | Hierarchical `AgentTracer` spans (`trace_id`, `span_id`, `duration_ms`), `MetricsRegistry` latency/counter snapshots, and canonical SHA-256 ALCOA+ payload digests. |
-| **5. Infrastructure & CI/CD** | `facility_fit_agent/cicd.py`, `facility_fit_agent/deployment_manifest.json` | 4-gate automated release qualification pipeline (`/api/cicd-gates`): Golden Physics Drift, GxP MES Write-Lock Red-Team, Schema & HITL Gate, and ALCOA+ Hash-Chain Integrity. |
+| **1. Tool & Interface Design** | `facility_fit_agent/tools.py` | Read-only `Protocol` interfaces, runtime JSON Schema parameter validation, async `asyncio.wait_for` timeout execution, ADK / Vertex AI `ToolDeclaration` exports (`/api/tools`), and guarded `actuate_shop_floor_mes_setpoint` write-lock raising `GxpBoundaryViolationError`. |
+| **2. Context & Memory** | `facility_fit_agent/prompts.py`, `facility_fit_agent/database.py`, `facility_fit_agent/memory.py` | Authoritative constitutional LLM `SYSTEM_PROMPT` (`/api/system-prompt`) & `PromptContextAssembler`; **100% asynchronous (`async def` / `await`)** operations backed by a **persistent WAL-mode SQLite relational database** (`AsyncSqliteDatabaseBackend`) or **Google Cloud Firestore** (`AsyncFirestoreDatabaseBackend`); token-budget rolling-summary compaction (`compact_history`), persistent `EpisodicPrecedentStore`, and SHA-256 hash-chained `AssessmentAuditLedger`. |
+| **3. Orchestration & Logic** | `facility_fit_agent/orchestrator.py`, `facility_fit_agent/agent.py` | Asynchronous 5-stage state machine (`execute_assessment_async`) using `asyncio.gather` for concurrent multi-site fan-out (`orchestrate_network_comparison_async`) and stateful `simulate_what_if_async`. |
+| **4. Observability & Tracing** | `facility_fit_agent/observability.py` | Hierarchical sync & async `AgentTracer` spans (`start_async_span`), `MetricsRegistry` p50/p95/max latency & GxP block counters, and canonical SHA-256 ALCOA+ payload digests. |
+| **5. Infrastructure & CI/CD** | `facility_fit_agent/cicd.py`, `Dockerfile`, `cloudbuild.yaml` | Non-root container with `HEALTHCHECK`, Cloud Build CI/CD pipeline (`cloudbuild.yaml`), and 4-gate async release qualification pipeline (`run_cicd_gates_async`). |
 
 ## Quickstart
 
