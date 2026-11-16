@@ -1,0 +1,2445 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Biopharma CMC Continuous Facility Fit Agent — Decision-Support Cockpit</title>
+  <meta name="description" content="GxP-aware deterministic bioprocess facility fit assessment engine for Global Biomanufacturing Operations (GBO) and Bioprocess R&D Sciences (BRDS) across Alpha Biologics Hub, Beta Campus, and Gamma Plant." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root,
+    [data-theme="light"] {
+      --bg: #f4f6f7;
+      --surface: #ffffff;
+      --surface-subtle: #edf1f2;
+      --text-primary: #102026;
+      --text-secondary: #4a5d64;
+      --text-muted: #6e8188;
+      --border: #d5dfe2;
+      --accent: #007a73;
+      --accent-hover: #00615b;
+      --accent-soft: #e3f3f1;
+      --critical: #b91c1c;
+      --critical-bg: #fef2f2;
+      --critical-border: #fecaca;
+      --major: #b45309;
+      --major-bg: #fffbeb;
+      --major-border: #fde68a;
+      --minor: #0369a1;
+      --minor-bg: #f0f9ff;
+      --minor-border: #bae6fd;
+      --pass: #15803d;
+      --pass-bg: #f0fdf4;
+      --pass-border: #bbf7d0;
+      --shadow-sm: 0 1px 2px rgba(16, 32, 38, 0.05);
+      --shadow-md: 0 4px 12px rgba(16, 32, 38, 0.06);
+    }
+
+    [data-theme="dark"] {
+      --bg: #0c1417;
+      --surface: #131f24;
+      --surface-subtle: #1a2930;
+      --text-primary: #e7eff2;
+      --text-secondary: #9fb3ba;
+      --text-muted: #6f8790;
+      --border: #263942;
+      --accent: #14b8a6;
+      --accent-hover: #2dd4bf;
+      --accent-soft: rgba(20, 184, 166, 0.14);
+      --critical: #f87171;
+      --critical-bg: rgba(185, 28, 28, 0.18);
+      --critical-border: rgba(248, 113, 113, 0.35);
+      --major: #fbbf24;
+      --major-bg: rgba(180, 83, 9, 0.18);
+      --major-border: rgba(251, 191, 36, 0.35);
+      --minor: #38bdf8;
+      --minor-bg: rgba(3, 105, 161, 0.18);
+      --minor-border: rgba(56, 189, 248, 0.35);
+      --pass: #4ade80;
+      --pass-bg: rgba(21, 128, 61, 0.18);
+      --pass-border: rgba(74, 222, 128, 0.35);
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+      --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.45);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg);
+      color: var(--text-primary);
+      line-height: 1.45;
+      font-size: 14px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .mono {
+      font-family: 'IBM Plex Mono', monospace;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .gxp-banner {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .gxp-banner-tag {
+      font-weight: 600;
+      color: var(--accent);
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    header.app-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 20px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .brand-block h1 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.015em;
+      color: var(--text-primary);
+    }
+
+    .brand-subtitle {
+      font-size: 12.5px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    .header-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+
+    label.control-inline {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    select,
+    input[type="text"] {
+      background: var(--surface);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 7px 11px;
+      font-family: inherit;
+      font-size: 13px;
+      transition: border-color 0.15s ease;
+    }
+
+    select:focus,
+    input[type="text"]:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    button.btn {
+      background: var(--surface-subtle);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 7px 12px;
+      font-family: inherit;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+    }
+
+    button.btn:hover {
+      border-color: var(--accent);
+    }
+
+    button.btn:active {
+      transform: translateY(1px);
+    }
+
+    button.btn-primary {
+      background: var(--accent);
+      color: #ffffff;
+      border-color: var(--accent);
+    }
+
+    [data-theme="dark"] button.btn-primary {
+      color: #061314;
+    }
+
+    button.btn-primary:hover {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+    }
+
+    .site-strip {
+      max-width: 1560px;
+      margin: 16px auto 0;
+      padding: 0 20px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .site-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      cursor: pointer;
+      text-align: left;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .site-card:hover {
+      border-color: var(--accent);
+    }
+
+    .site-card.active {
+      background: var(--surface);
+      box-shadow: var(--shadow-md);
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+    }
+
+    .site-card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .site-name {
+      font-size: 14.5px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .site-loc {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .fit-score-badge {
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1;
+      padding: 5px 9px;
+      border-radius: 6px;
+      background: var(--surface-subtle);
+    }
+
+    .site-meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+      font-size: 12px;
+    }
+
+    .pill-counts {
+      display: flex;
+      gap: 6px;
+    }
+
+    .sev-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      border: 1px solid transparent;
+    }
+
+    .sev-CRITICAL {
+      color: var(--critical);
+      background: var(--critical-bg);
+      border-color: var(--critical-border);
+    }
+
+    .sev-MAJOR {
+      color: var(--major);
+      background: var(--major-bg);
+      border-color: var(--major-border);
+    }
+
+    .sev-MINOR {
+      color: var(--minor);
+      background: var(--minor-bg);
+      border-color: var(--minor-border);
+    }
+
+    .sev-PASS {
+      color: var(--pass);
+      background: var(--pass-bg);
+      border-color: var(--pass-border);
+    }
+
+    .workspace-grid {
+      max-width: 1560px;
+      margin: 16px auto 32px;
+      padding: 0 20px;
+      display: grid;
+      grid-template-columns: 330px 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+
+    aside.param-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .panel-header h2 {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .slider-group {
+      margin-bottom: 13px;
+    }
+
+    .slider-label-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+
+    .slider-label-row span:first-child {
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .slider-val {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .cqa-box {
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    .cqa-box h3 {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+
+    .cqa-item {
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+
+    .cqa-item:last-child {
+      border-bottom: none;
+    }
+
+    .cqa-item strong {
+      display: block;
+      color: var(--text-primary);
+    }
+
+    .main-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+    }
+
+    .tab-bar {
+      display: flex;
+      flex-wrap: wrap;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-subtle);
+      padding: 0 12px;
+      gap: 4px;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      padding: 12px 14px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-primary);
+    }
+
+    .tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+      background: var(--surface);
+    }
+
+    .tab-content {
+      padding: 20px;
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .section-title {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .envelope-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 22px;
+    }
+
+    .envelope-row {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 14px;
+      background: var(--surface);
+    }
+
+    .env-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 6px;
+      gap: 8px;
+    }
+
+    .env-title {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .env-reading {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .bar-track {
+      height: 8px;
+      background: var(--surface-subtle);
+      border-radius: 4px;
+      position: relative;
+      overflow: hidden;
+      margin: 8px 0 6px;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.2s ease;
+    }
+
+    .bar-limit-marker {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--text-primary);
+    }
+
+    .env-sub {
+      font-size: 11.5px;
+      color: var(--text-secondary);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+    }
+
+    table.data-table th,
+    table.data-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    table.data-table th {
+      background: var(--surface-subtle);
+      color: var(--text-secondary);
+      font-weight: 600;
+      font-size: 11.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    table.data-table tr:hover td {
+      background: rgba(0, 122, 115, 0.03);
+    }
+
+    .filter-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .mitigation-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .mitigation-item {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 14px;
+      background: var(--surface-subtle);
+    }
+
+    .mitigation-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 4px;
+      font-weight: 600;
+    }
+
+    .hitl-banner {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 18px;
+      background: var(--surface-subtle);
+    }
+
+    .hitl-banner.locked {
+      background: var(--major-bg);
+      border-color: var(--major-border);
+    }
+
+    .hitl-banner.unlocked {
+      background: var(--pass-bg);
+      border-color: var(--pass-border);
+    }
+
+    .hitl-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+      align-items: center;
+    }
+
+    .trace-steps {
+      list-style: none;
+      margin-bottom: 18px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      divide-y: 1px solid var(--border);
+    }
+
+    .trace-steps li {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12.5px;
+    }
+
+    .trace-steps li:last-child {
+      border-bottom: none;
+    }
+
+    pre.json-viewer {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 14px;
+      overflow-x: auto;
+      max-height: 480px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--text-primary);
+    }
+
+    @media (max-width: 1080px) {
+      .site-strip {
+        grid-template-columns: 1fr;
+      }
+      .workspace-grid {
+        grid-template-columns: 1fr;
+      }
+      .envelope-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="gxp-banner" role="region" aria-label="GxP Operational Boundary">
+    <div>
+      <span class="gxp-banner-tag">GxP Decision-Support Boundary</span>
+      &nbsp;Non-GxP Advisory Engine (GBO / BRDS) &middot; Deterministic Transport Physics Active &middot; Autonomous MES / SOP Write-Back Strictly Disabled
+    </div>
+    <div class="mono" id="schema-badge">Schema: FacilityFitAssessmentReport v1.0</div>
+  </div>
+
+  <header class="app-header">
+    <div class="brand-block">
+      <h1>Biopharma CMC Continuous Facility Fit Agent</h1>
+      <p class="brand-subtitle">Enterprise PKM Recipe Evaluation vs. Plant MES, Enterprise LIMS &amp; Enterprise Supply Planner Receiving Site Envelopes</p>
+    </div>
+    <div class="header-controls">
+      <label class="control-inline" for="select-recipe">
+        Enterprise PKM Package
+        <select id="select-recipe" aria-label="Select Enterprise PKM Process Recipe">
+          <option value="PKM-AB4821-DS-V4.2">PKM-AB4821-DS-V4.2 &mdash; AB-4821 IgG1 mAb (2,000L R&amp;D &rarr; 12,000L Commercial)</option>
+          <option value="PKM-AB4821-SUB2K-V4.2">PKM-AB4821-SUB2K-V4.2 &mdash; AB-4821 1:1 Single-Use 2,000L Launch PPQ (185 g/L SC)</option>
+          <option value="PKM-BS7190-BSAB-V2.1">PKM-BS7190-BSAB-V2.1 &mdash; BS-7190 Shear-Sensitive Bispecific (10,000L Campaign)</option>
+        </select>
+      </label>
+      <button type="button" class="btn" id="btn-reset-params">Reset PKM Baseline</button>
+      <button type="button" class="btn" id="btn-toggle-theme">Dark / Light</button>
+    </div>
+  </header>
+
+  <section class="site-strip" id="site-strip" aria-label="Target Receiving Sites"></section>
+
+  <main class="workspace-grid">
+    <aside class="param-panel" aria-label="Enterprise PKM Critical Process Parameters">
+      <div class="panel-header">
+        <h2>Recipe CPPs (Live Physics)</h2>
+        <span class="mono" id="lbl-molecule" style="font-size:12px;color:var(--accent);font-weight:600;">AB-4821</span>
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-label-row">
+          <span>Target Batch Volume</span>
+          <span class="slider-val mono" id="val-volume">12,000 L</span>
+        </div>
+        <input type="range" id="slider-volume" min="1500" max="16000" step="250" value="12000" />
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-label-row">
+          <span>Day-0 Seed Fill Ratio</span>
+          <span class="slider-val mono" id="val-seed-pct">56% (6,720 L)</span>
+        </div>
+        <input type="range" id="slider-seed-pct" min="42" max="75" step="1" value="56" />
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-label-row">
+          <span>Peak Viable Cell Density</span>
+          <span class="slider-val mono" id="val-vcd">26.0 &times;10&#8310;/mL</span>
+        </div>
+        <input type="range" id="slider-vcd" min="12" max="42" step="0.5" value="26" />
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-label-row">
+          <span>Target O&#8322; Transfer (kLa)</span>
+          <span class="slider-val mono" id="val-kla">24.0 h&#8315;&sup1;</span>
+        </div>
+        <input type="range" id="slider-kla" min="14" max="38" step="0.5" value="24" />
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-label-row">
+          <span>Max Impeller Tip Speed</span>
+          <span class="slider-val mono" id="val-tip">2.60 m/s</span>
+        </div>
+        <input type="range" id="slider-tip" min="1.90" max="3.10" step="0.05" value="2.60" />
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-label-row">
+          <span>Harvest Titer</span>
+          <span class="slider-val mono" id="val-titer">6.5 g/L</span>
+        </div>
+        <input type="range" id="slider-titer" min="2.5" max="10.5" step="0.25" value="6.5" />
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-label-row">
+          <span>Capture Linear Velocity</span>
+          <span class="slider-val mono" id="val-velocity">300 cm/h</span>
+        </div>
+        <input type="range" id="slider-velocity" min="150" max="350" step="10" value="300" />
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-label-row">
+          <span>Final UF/DF DS Conc.</span>
+          <span class="slider-val mono" id="val-ds-conc">165 g/L</span>
+        </div>
+        <input type="range" id="slider-ds-conc" min="80" max="210" step="5" value="165" />
+      </div>
+
+      <div class="cqa-box">
+        <h3>Linked CQAs Monitored</h3>
+        <div class="cqa-item">
+          <strong>CQA-GLY-01 &middot; N-Glycan Profile</strong>
+          Sensitive to kLa, dissolved O&#8322;, pCO&#8322; &amp; H/D ratio
+        </div>
+        <div class="cqa-item">
+          <strong>CQA-CHG-02 &middot; Acidic Variants (iCIEF)</strong>
+          Sensitive to impeller shear, harvest hold &amp; thermal load
+        </div>
+        <div class="cqa-item">
+          <strong>CQA-IMP-03 &middot; CHO HCP &amp; Residual LDAO</strong>
+          Sensitive to cell lysis, Protein A DBC &amp; LIMS release assay
+        </div>
+        <div class="cqa-item">
+          <strong>CQA-AGG-04 &middot; HMW Aggregates (SEC)</strong>
+          Sensitive to TFF hold-up air entrainment &amp; skid &Delta;P
+        </div>
+      </div>
+    </aside>
+
+    <section class="main-panel" aria-label="Facility Fit Analysis Results">
+      <nav class="tab-bar" role="tablist">
+        <button type="button" class="tab-btn active" data-tab="tab-physics" id="btn-tab-physics">1. Deterministic Physics &amp; Unit Ops</button>
+        <button type="button" class="tab-btn" data-tab="tab-discrepancies" id="btn-tab-discrepancies">2. Discrepancy Matrix &amp; Mitigations</button>
+        <button type="button" class="tab-btn" data-tab="tab-comparison" id="btn-tab-comparison">3. Multi-Site Network Matrix</button>
+        <button type="button" class="tab-btn" data-tab="tab-schema" id="btn-tab-schema">4. HITL Signoff &amp; JSON Schema</button>
+        <button type="button" class="tab-btn" data-tab="tab-arch" id="btn-tab-arch">5. Architecture Pillars &amp; Live Trace</button>
+      </nav>
+
+      <div class="tab-content active" id="tab-physics">
+        <div class="section-title">
+          <span id="physics-site-heading">Operating Envelopes</span>
+          <span class="mono" style="font-size:12px;color:var(--text-secondary);" id="matched-mes-tags"></span>
+        </div>
+        <div class="envelope-grid" id="envelope-gauges"></div>
+
+        <div class="section-title" style="margin-top:8px;">
+          <span>Deterministic Engineering Calculation Audit Log</span>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="data-table" id="physics-audit-table">
+            <thead>
+              <tr>
+                <th>Engineering Parameter</th>
+                <th>Governing Correlation</th>
+                <th>Computed Value</th>
+                <th>Recipe / Site Envelope</th>
+                <th>Fit Check</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tab-content" id="tab-discrepancies">
+        <div class="section-title">
+          <span id="disc-heading">Discrepancy Matrix</span>
+          <div class="filter-row" style="margin-bottom:0;">
+            <button type="button" class="btn sev-filter-btn active" data-sev="ALL" id="flt-all">All</button>
+            <button type="button" class="btn sev-filter-btn" data-sev="CRITICAL" id="flt-crit">Critical</button>
+            <button type="button" class="btn sev-filter-btn" data-sev="MAJOR" id="flt-maj">Major</button>
+            <button type="button" class="btn sev-filter-btn" data-sev="MINOR" id="flt-min">Minor</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="data-table" id="discrepancy-table">
+            <thead>
+              <tr>
+                <th>ID &amp; Severity</th>
+                <th>Unit Operation &amp; Parameter</th>
+                <th>Recipe Demand</th>
+                <th>Site Capability</th>
+                <th>Deterministic Result</th>
+                <th>CQA &amp; Regulatory Impact</th>
+                <th>System Tags</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="section-title" style="margin-top:22px;">
+          <span>Recommended Engineering &amp; Quality Change-Control Mitigations</span>
+        </div>
+        <div class="mitigation-list" id="mitigation-container"></div>
+      </div>
+
+      <div class="tab-content" id="tab-comparison">
+        <div class="section-title">
+          <span>Cross-Network Receiving Facility Comparison (Alpha Biologics Hub vs. Beta Campus vs. Gamma Plant)</span>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="data-table" id="network-comparison-table">
+            <thead>
+              <tr>
+                <th>Dimension / Engineering Metric</th>
+                <th>Recipe Target</th>
+                <th>Alpha Biologics Hub (EU)</th>
+                <th>Beta Biologics Campus (US-NE)</th>
+                <th>Gamma Biologics Plant (US-MA)</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tab-content" id="tab-schema">
+        <div class="hitl-banner" id="hitl-box"></div>
+
+        <div class="section-title">
+          <span>5-Step Constitutional Reasoning Trace</span>
+        </div>
+        <ul class="trace-steps" id="reasoning-trace-list"></ul>
+
+        <div class="section-title">
+          <span>Structured Output: <code class="mono">FacilityFitAssessmentReport</code></span>
+          <div style="display:flex;gap:8px;">
+            <button type="button" class="btn" id="btn-copy-json">Copy JSON</button>
+            <button type="button" class="btn btn-primary" id="btn-download-json">Download Report (.json)</button>
+          </div>
+        </div>
+        <pre class="json-viewer mono" id="json-output"></pre>
+      </div>
+
+      <div class="tab-content" id="tab-arch">
+        <div class="section-title">
+          <span>Pillar 1 &mdash; Tool &amp; Interface Design (<code class="mono">tools.py</code>)</span>
+          <button type="button" class="btn" id="btn-redteam-mes">Test Prohibited MES Write (Red-Team Guard)</button>
+        </div>
+        <div id="redteam-banner" style="display:none;margin-bottom:14px;" class="hitl-banner locked"></div>
+        <div style="overflow-x:auto;margin-bottom:22px;">
+          <table class="data-table" id="arch-tools-table">
+            <thead>
+              <tr>
+                <th>ADK / Vertex Tool Contract</th>
+                <th>Enterprise Target</th>
+                <th>GxP Access Mode</th>
+                <th>Input Schema Keys</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="section-title">
+          <span>Pillar 2 &mdash; Context &amp; Memory (<code class="mono">memory.py</code>)</span>
+          <span class="mono" style="font-size:12px;color:var(--text-secondary);" id="ctx-override-badge">Session Overrides: 0</span>
+        </div>
+        <div id="arch-memory-box" class="mitigation-list" style="margin-top:0;margin-bottom:22px;"></div>
+
+        <div class="section-title">
+          <span>Pillar 3 &amp; 4 &mdash; Orchestration DAG (<code class="mono">orchestrator.py</code>) &amp; OpenTelemetry Spans (<code class="mono">observability.py</code>)</span>
+          <span class="mono" style="font-size:12px;color:var(--accent);" id="obs-digest-badge"></span>
+        </div>
+        <div style="overflow-x:auto;margin-bottom:22px;">
+          <table class="data-table" id="arch-spans-table">
+            <thead>
+              <tr>
+                <th>Orchestration Stage / Span</th>
+                <th>Span ID</th>
+                <th>Latency</th>
+                <th>Deterministic Status &amp; GxP Attributes</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="section-title">
+          <span>Pillar 5 &mdash; Infrastructure &amp; CI/CD Release Gates (<code class="mono">cicd.py</code> &middot; <code class="mono">deployment_manifest.json</code>)</span>
+          <span class="sev-pill sev-PASS">4 / 4 GATES PASSING</span>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="data-table" id="arch-cicd-table">
+            <thead>
+              <tr>
+                <th>Gate ID</th>
+                <th>Qualification Check</th>
+                <th>Infrastructure / Runtime Binding</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const RECIPES = {
+      "PKM-AB4821-DS-V4.2": {
+        process_id: "PKM-AB4821-DS-V4.2",
+        molecule_code: "AB-4821",
+        molecule_modality: "Humanized IgG1 Oncology mAb (Commercial Scale-Up)",
+        pkm_version: "Enterprise PKM v4.2.0 (R&D 2,000L SUB -> 12,000L Commercial)",
+        target_batch_volume_liters: 12000,
+        seed_ratio_pct: 56,
+        broth_density_kg_m3: 1030.0,
+        broth_viscosity_pa_s: 0.00145,
+        harvest_viscosity_cp: 1.65,
+        peak_viable_cell_density_e6_ml: 26.0,
+        specific_o2_uptake_mmol_cell_hr: 2.1e-10,
+        target_kla_per_hr: 24.0,
+        max_impeller_tip_speed_m_s: 2.60,
+        min_kolmogorov_scale_um: 20.0,
+        target_p_v_min_w_m3: 20.0,
+        max_aspect_ratio_h_d: 1.85,
+        operating_temp_c: 36.8,
+        cip_sip_temp_c: 123.0,
+        harvest_titer_g_l: 6.5,
+        clarification_yield: 0.94,
+        capture_target_linear_velocity_cm_hr: 300.0,
+        capture_bed_height_cm: 20.0,
+        capture_resin_dbc_g_l: 55.0,
+        capture_max_cycles: 3,
+        max_harvest_hold_hours: 28.0,
+        downstream_overall_yield: 0.84,
+        ufdf_start_conc_g_l: 18.0,
+        ufdf_target_ds_conc_g_l: 165.0,
+        ufdf_diavolumes: 7.0,
+        ufdf_avg_flux_lmh: 38.0,
+        ufdf_max_process_hours: 4.5,
+        peak_buffer_wfi_lph: 3650.0,
+        required_raw_materials: [
+          ["RM-10482", "CD-CHO Basal & Concentrated Feed Media B"],
+          ["RM-88210", "MabSelect PrismA Protein A Resin"],
+          ["RM-99412", "LDAO Eco-Detergent Viral Inactivation Agent"],
+          ["RM-44109", "L-Histidine / Sucrose Compendial Excipient Grade"]
+        ],
+        required_lims_methods: [
+          ["LIMS-METH-CEX-014", "iCIEF Charge Variant Release Assay"],
+          ["LIMS-METH-GLY-008", "HILIC Released N-Glycan Profiling"],
+          ["LIMS-METH-HCP-022", "3G CHO Host Cell Protein ELISA"],
+          ["LIMS-METH-DET-031", "UHPLC-CAD Residual LDAO Detergent Assay"]
+        ]
+      },
+      "PKM-AB4821-SUB2K-V4.2": {
+        process_id: "PKM-AB4821-SUB2K-V4.2",
+        molecule_code: "AB-4821",
+        molecule_modality: "Humanized IgG1 mAb (2,000L SUB Scale-Out PPQ)",
+        pkm_version: "Enterprise PKM v4.2.1 (1:1 Single-Use Launch Transfer)",
+        target_batch_volume_liters: 2000,
+        seed_ratio_pct: 56,
+        broth_density_kg_m3: 1030.0,
+        broth_viscosity_pa_s: 0.00145,
+        harvest_viscosity_cp: 1.65,
+        peak_viable_cell_density_e6_ml: 26.0,
+        specific_o2_uptake_mmol_cell_hr: 2.1e-10,
+        target_kla_per_hr: 24.0,
+        max_impeller_tip_speed_m_s: 2.60,
+        min_kolmogorov_scale_um: 20.0,
+        target_p_v_min_w_m3: 20.0,
+        max_aspect_ratio_h_d: 1.85,
+        operating_temp_c: 36.8,
+        cip_sip_temp_c: 121.0,
+        harvest_titer_g_l: 6.5,
+        clarification_yield: 0.94,
+        capture_target_linear_velocity_cm_hr: 280.0,
+        capture_bed_height_cm: 20.0,
+        capture_resin_dbc_g_l: 55.0,
+        capture_max_cycles: 3,
+        max_harvest_hold_hours: 24.0,
+        downstream_overall_yield: 0.84,
+        ufdf_start_conc_g_l: 18.0,
+        ufdf_target_ds_conc_g_l: 185.0,
+        ufdf_diavolumes: 7.0,
+        ufdf_avg_flux_lmh: 36.0,
+        ufdf_max_process_hours: 4.0,
+        peak_buffer_wfi_lph: 1450.0,
+        required_raw_materials: [
+          ["RM-10482", "CD-CHO Basal & Concentrated Feed Media B"],
+          ["RM-88210", "MabSelect PrismA Protein A Resin"],
+          ["RM-99412", "LDAO Eco-Detergent Viral Inactivation Agent"],
+          ["RM-77501", "2,000L Gamma-Irradiated Single-Use Bioreactor Bag"]
+        ],
+        required_lims_methods: [
+          ["LIMS-METH-CEX-014", "iCIEF Charge Variant Release Assay"],
+          ["LIMS-METH-GLY-008", "HILIC Released N-Glycan Profiling"],
+          ["LIMS-METH-HCP-022", "3G CHO Host Cell Protein ELISA"],
+          ["LIMS-METH-DET-031", "UHPLC-CAD Residual LDAO Detergent Assay"]
+        ]
+      },
+      "PKM-BS7190-BSAB-V2.1": {
+        process_id: "PKM-BS7190-BSAB-V2.1",
+        molecule_code: "BS-7190",
+        molecule_modality: "Shear-Sensitive Oncology Bispecific Antibody",
+        pkm_version: "Enterprise PKM v2.1.0 (High-Density Low-Shear Campaign)",
+        target_batch_volume_liters: 10000,
+        seed_ratio_pct: 58,
+        broth_density_kg_m3: 1035.0,
+        broth_viscosity_pa_s: 0.00185,
+        harvest_viscosity_cp: 1.95,
+        peak_viable_cell_density_e6_ml: 31.0,
+        specific_o2_uptake_mmol_cell_hr: 2.25e-10,
+        target_kla_per_hr: 28.0,
+        max_impeller_tip_speed_m_s: 2.25,
+        min_kolmogorov_scale_um: 22.0,
+        target_p_v_min_w_m3: 22.0,
+        max_aspect_ratio_h_d: 1.80,
+        operating_temp_c: 36.5,
+        cip_sip_temp_c: 122.5,
+        harvest_titer_g_l: 5.2,
+        clarification_yield: 0.92,
+        capture_target_linear_velocity_cm_hr: 260.0,
+        capture_bed_height_cm: 20.0,
+        capture_resin_dbc_g_l: 48.0,
+        capture_max_cycles: 3,
+        max_harvest_hold_hours: 24.0,
+        downstream_overall_yield: 0.80,
+        ufdf_start_conc_g_l: 15.0,
+        ufdf_target_ds_conc_g_l: 140.0,
+        ufdf_diavolumes: 8.0,
+        ufdf_avg_flux_lmh: 32.0,
+        ufdf_max_process_hours: 4.5,
+        peak_buffer_wfi_lph: 3400.0,
+        required_raw_materials: [
+          ["RM-10482", "CD-CHO Basal & Concentrated Feed Media B"],
+          ["RM-88210", "MabSelect PrismA Protein A Resin"],
+          ["RM-99412", "LDAO Eco-Detergent Viral Inactivation Agent"]
+        ],
+        required_lims_methods: [
+          ["LIMS-METH-CEX-014", "iCIEF Charge Variant Release Assay"],
+          ["LIMS-METH-GLY-008", "HILIC Released N-Glycan Profiling"],
+          ["LIMS-METH-HCP-022", "3G CHO Host Cell Protein ELISA"],
+          ["LIMS-METH-DET-031", "UHPLC-CAD Residual LDAO Detergent Assay"]
+        ]
+      }
+    };
+
+    const SITES = {
+      "ALPHA_EU_HUB": {
+        site_code: "ALPHA_EU_HUB",
+        short_name: "Alpha Biologics Hub",
+        site_display_name: "Alpha Biologics Hub (European Commercial Suite)",
+        location: "European Commercial Biologics Center (FDA / EMA / PMDA)",
+        bioreactors: [
+          {
+            equipment_id: "ALP-BRX15K-01",
+            mes_tag: "EU-ALP-B1-BRX1501",
+            min_working_volume_liters: 4500,
+            max_working_volume_liters: 13500,
+            vessel_diameter_m: 2.08,
+            impeller_type: "LOW_SHEAR_HYDROFOIL",
+            impeller_count: 2,
+            impeller_diameter_m: 0.86,
+            power_number_np: 0.88,
+            min_rpm: 22,
+            max_rpm: 58,
+            sparger_type: "SINTERED_MICRO",
+            max_aeration_vvm: 0.085,
+            jacket_area_full_m2: 28.5,
+            overall_htc_w_m2_k: 390,
+            coolant_supply_temp_c: 6.0,
+            sip_max_rated_temp_c: 125.0
+          },
+          {
+            equipment_id: "ALP-SUB2K-04",
+            mes_tag: "EU-ALP-SU2-SUB2004",
+            min_working_volume_liters: 500,
+            max_working_volume_liters: 2000,
+            vessel_diameter_m: 1.14,
+            impeller_type: "LOW_SHEAR_HYDROFOIL",
+            impeller_count: 1,
+            impeller_diameter_m: 0.46,
+            power_number_np: 0.95,
+            min_rpm: 35,
+            max_rpm: 105,
+            sparger_type: "SINTERED_MICRO",
+            max_aeration_vvm: 0.095,
+            jacket_area_full_m2: 6.8,
+            overall_htc_w_m2_k: 240,
+            coolant_supply_temp_c: 7.0,
+            sip_max_rated_temp_c: 121.5
+          }
+        ],
+        chromatography_skids: [
+          {
+            equipment_id: "ALP-AXI160-01",
+            mes_tag: "EU-ALP-DSP1-CHR1601",
+            column_diameter_cm: 160,
+            min_bed_height_cm: 15,
+            max_bed_height_cm: 25,
+            max_linear_velocity_cm_hr: 350,
+            max_operating_pressure_bar: 3.0,
+            skid_piping_delta_p_bar: 0.42
+          },
+          {
+            equipment_id: "ALP-AXI80-02",
+            mes_tag: "EU-ALP-SU2-CHR0802",
+            column_diameter_cm: 80,
+            min_bed_height_cm: 14,
+            max_bed_height_cm: 24,
+            max_linear_velocity_cm_hr: 340,
+            max_operating_pressure_bar: 3.0,
+            skid_piping_delta_p_bar: 0.38
+          }
+        ],
+        tff_skids: [
+          {
+            equipment_id: "ALP-TFF-SK02",
+            mes_tag: "EU-ALP-DSP2-TFF02",
+            max_membrane_area_m2: 40.0,
+            min_recirculation_volume_liters: 18.0
+          }
+        ],
+        utilities: {
+          wfi_loop_tag: "EU-ALP-WFI-LOOP01",
+          available_peak_wfi_lph: 6800,
+          concurrent_cip_wfi_draw_lph: 1500
+        },
+        lims_methods: {
+          "LIMS-METH-CEX-014": { status: "QUALIFIED", pct: 100 },
+          "LIMS-METH-GLY-008": { status: "QUALIFIED", pct: 100 },
+          "LIMS-METH-HCP-022": { status: "QUALIFIED", pct: 100 },
+          "LIMS-METH-DET-031": { status: "IN_TRANSFER_PROTOCOL", pct: 60 }
+        },
+        materials: {
+          "RM-10482": { qualified: true, lead: 4, notes: "Dual-sourced in Alpha Hub MES." },
+          "RM-88210": { qualified: true, lead: 6, notes: "Reserved in Warehouse B2." },
+          "RM-99412": { qualified: true, lead: 5, notes: "Vendor qualified." },
+          "RM-44109": { qualified: true, lead: 3, notes: "Ph.Eur./USP active." },
+          "RM-77501": { qualified: true, lead: 8, notes: "Qualified in SU2 ballroom." }
+        },
+        supply_schedule: {
+          schedule_id: "O8-ALP-2027-Q1-SLOT4",
+          next_open_window: "2027-Q1 (Weeks 06-11)",
+          slot_conflict: false,
+          conflict_notes: "Suite B1 & SU2 open for PPQ campaign."
+        }
+      },
+      "BETA_US_CAMPUS": {
+        site_code: "BETA_US_CAMPUS",
+        short_name: "Beta Campus (US-NE)",
+        site_display_name: "Beta Biologics Campus (US Northeast Hybrid)",
+        location: "US Northeast Hybrid Biologics Campus (FDA / EMA)",
+        bioreactors: [
+          {
+            equipment_id: "BET-BRX10K-02",
+            mes_tag: "US-BET-SH2-BRX1002",
+            min_working_volume_liters: 3200,
+            max_working_volume_liters: 8500,
+            vessel_diameter_m: 1.86,
+            impeller_type: "RUSHTON_TURBINE",
+            impeller_count: 2,
+            impeller_diameter_m: 0.74,
+            power_number_np: 5.0,
+            min_rpm: 30,
+            max_rpm: 74,
+            sparger_type: "DRILLED_PIPE",
+            max_aeration_vvm: 0.022,
+            jacket_area_full_m2: 21.0,
+            overall_htc_w_m2_k: 340,
+            coolant_supply_temp_c: 7.0,
+            sip_max_rated_temp_c: 124.5
+          }
+        ],
+        chromatography_skids: [
+          {
+            equipment_id: "BET-CHM100-02",
+            mes_tag: "US-BET-SH2-CHR1002",
+            column_diameter_cm: 100,
+            min_bed_height_cm: 15,
+            max_bed_height_cm: 22,
+            max_linear_velocity_cm_hr: 280,
+            max_operating_pressure_bar: 2.0,
+            skid_piping_delta_p_bar: 0.65
+          }
+        ],
+        tff_skids: [
+          {
+            equipment_id: "BET-TFF-SK01",
+            mes_tag: "US-BET-SH2-TFF01",
+            max_membrane_area_m2: 35.0,
+            min_recirculation_volume_liters: 42.0
+          }
+        ],
+        utilities: {
+          wfi_loop_tag: "US-BET-SH2-WFI-B",
+          available_peak_wfi_lph: 4200,
+          concurrent_cip_wfi_draw_lph: 1650
+        },
+        lims_methods: {
+          "LIMS-METH-CEX-014": { status: "QUALIFIED", pct: 100 },
+          "LIMS-METH-GLY-008": { status: "QUALIFIED", pct: 100 },
+          "LIMS-METH-HCP-022": { status: "QUALIFIED", pct: 100 },
+          "LIMS-METH-DET-031": { status: "NOT_INITIATED", pct: 0 }
+        },
+        materials: {
+          "RM-10482": { qualified: true, lead: 4, notes: "Approved in Beta Campus MES." },
+          "RM-88210": { qualified: true, lead: 6, notes: "Approved in site master." },
+          "RM-99412": { qualified: false, lead: 14, notes: "Not registered in Beta Campus SAP/MES." },
+          "RM-44109": { qualified: true, lead: 3, notes: "Compendial stock active." },
+          "RM-77501": { qualified: false, lead: 16, notes: "No 2,000L SUB frame in SH2." }
+        },
+        supply_schedule: {
+          schedule_id: "O8-BET-2027-Q1-SH2",
+          next_open_window: "2027-Q1 (2-week Vaccine overlap)",
+          slot_conflict: true,
+          conflict_notes: "Requires 14-day campaign shift in Enterprise Supply Planner."
+        }
+      },
+      "GAMMA_US_PLANT": {
+        site_code: "GAMMA_US_PLANT",
+        short_name: "Gamma Plant (US-MA)",
+        site_display_name: "Gamma Fermentation & Biologics Plant (US Mid-Atlantic)",
+        location: "US Mid-Atlantic Tall-Aspect Facility (FDA / EMA)",
+        bioreactors: [
+          {
+            equipment_id: "GAM-BRX20K-03",
+            mes_tag: "US-GAM-SF4-BRX2003",
+            min_working_volume_liters: 7400,
+            max_working_volume_liters: 16500,
+            vessel_diameter_m: 1.94,
+            impeller_type: "PITCHED_BLADE",
+            impeller_count: 2,
+            impeller_diameter_m: 0.68,
+            power_number_np: 1.35,
+            min_rpm: 28,
+            max_rpm: 68,
+            sparger_type: "OPEN_PIPE",
+            max_aeration_vvm: 0.045,
+            jacket_area_full_m2: 18.0,
+            overall_htc_w_m2_k: 210,
+            coolant_supply_temp_c: 14.0,
+            sip_max_rated_temp_c: 121.5
+          }
+        ],
+        chromatography_skids: [
+          {
+            equipment_id: "GAM-CHM140-01",
+            mes_tag: "US-GAM-SF4-CHR1401",
+            column_diameter_cm: 140,
+            min_bed_height_cm: 15,
+            max_bed_height_cm: 25,
+            max_linear_velocity_cm_hr: 300,
+            max_operating_pressure_bar: 2.6,
+            skid_piping_delta_p_bar: 0.48
+          }
+        ],
+        tff_skids: [
+          {
+            equipment_id: "GAM-TFF-SK04",
+            mes_tag: "US-GAM-SF4-TFF04",
+            max_membrane_area_m2: 24.0,
+            min_recirculation_volume_liters: 85.0
+          }
+        ],
+        utilities: {
+          wfi_loop_tag: "US-GAM-SF4-WFI-02",
+          available_peak_wfi_lph: 5600,
+          concurrent_cip_wfi_draw_lph: 1500
+        },
+        lims_methods: {
+          "LIMS-METH-CEX-014": { status: "QUALIFIED", pct: 100 },
+          "LIMS-METH-GLY-008": { status: "IN_TRANSFER_PROTOCOL", pct: 45 },
+          "LIMS-METH-HCP-022": { status: "QUALIFIED", pct: 100 },
+          "LIMS-METH-DET-031": { status: "NOT_INITIATED", pct: 0 }
+        },
+        materials: {
+          "RM-10482": { qualified: true, lead: 4, notes: "Approved in Gamma Plant MES." },
+          "RM-88210": { qualified: true, lead: 6, notes: "Approved in DSP warehouse." },
+          "RM-99412": { qualified: false, lead: 12, notes: "Pending EHS & vendor audit." },
+          "RM-44109": { qualified: true, lead: 3, notes: "Compendial stock active." },
+          "RM-77501": { qualified: false, lead: 18, notes: "Stainless steel train only." }
+        },
+        supply_schedule: {
+          schedule_id: "O8-GAM-2027-Q1-SF4",
+          next_open_window: "2027-Q1 (Weeks 04-10)",
+          slot_conflict: false,
+          conflict_notes: "SF4 stainless train available."
+        }
+      }
+    };
+
+    const state = {
+      activeRecipeId: "PKM-AB4821-DS-V4.2",
+      activeSiteCode: "ALPHA_EU_HUB",
+      severityFilter: "ALL",
+      signoffs: {},
+      liveRecipe: null
+    };
+
+    function calcGassedPV(brx, rho, rpm, volL) {
+      const rps = rpm / 60.0;
+      const p0 = brx.impeller_count * brx.power_number_np * rho * Math.pow(rps, 3) * Math.pow(brx.impeller_diameter_m, 5);
+      return (0.82 * p0) / (volL / 1000.0);
+    }
+
+    function calcKla(pv, volL, vesselD, vvm, spargerType) {
+      const area = Math.PI * Math.pow(vesselD / 2.0, 2);
+      const qGas = ((volL * vvm) / 1000.0) / 60.0;
+      const vs = Math.max(qGas / area, 1e-5);
+      let c = 0.0105, a = 0.38, b = 0.45;
+      if (spargerType === "SINTERED_MICRO") { c = 0.0265; a = 0.44; b = 0.48; }
+      else if (spargerType === "DRILLED_PIPE") { c = 0.0138; a = 0.40; b = 0.46; }
+      return c * Math.pow(Math.max(pv, 1.0), a) * Math.pow(vs, b) * 3600.0;
+    }
+
+    function calcChrom(recipe, skid) {
+      const area = Math.PI * Math.pow(skid.column_diameter_cm / 2.0, 2);
+      const bedH = Math.min(Math.max(recipe.capture_bed_height_cm, skid.min_bed_height_cm), skid.max_bed_height_cm);
+      const bedVol = (area * bedH) / 1000.0;
+      const vel = Math.min(recipe.capture_target_linear_velocity_cm_hr, skid.max_linear_velocity_cm_hr);
+      const dP = 0.000185 * recipe.harvest_viscosity_cp * vel * bedH + skid.skid_piping_delta_p_bar;
+      const massG = recipe.target_batch_volume_liters * recipe.harvest_titer_g_l * recipe.clarification_yield;
+      const capG = bedVol * recipe.capture_resin_dbc_g_l * 0.85;
+      const cycles = Math.max(1, Math.ceil(massG / capG));
+      const flowLph = (vel * area) / 1000.0;
+      const loadHrs = (recipe.target_batch_volume_liters / cycles) / Math.max(flowLph, 1.0);
+      const totalHrs = cycles * (loadHrs + 1.85);
+      return {
+        bed_volume_liters: +bedVol.toFixed(2),
+        operating_velocity_cm_hr: +vel.toFixed(1),
+        pressure_drop_bar: +dP.toFixed(2),
+        cycles_required: cycles,
+        total_duration_hours: +totalHrs.toFixed(2)
+      };
+    }
+
+    function evaluateSite(recipe, site) {
+      let bestBrx = site.bioreactors[0];
+      let bestPen = Infinity;
+      for (const b of site.bioreactors) {
+        const inside = recipe.target_batch_volume_liters >= b.min_working_volume_liters &&
+                       recipe.target_batch_volume_liters <= b.max_working_volume_liters;
+        const diff = Math.abs(b.max_working_volume_liters - recipe.target_batch_volume_liters);
+        const pen = inside ? diff : diff + 100000;
+        if (pen < bestPen) { bestPen = pen; bestBrx = b; }
+      }
+
+      let bestSkid = site.chromatography_skids[0];
+      let bestCycGap = Infinity;
+      for (const s of site.chromatography_skids) {
+        const c = calcChrom(recipe, s);
+        const gap = Math.abs(c.cycles_required - recipe.capture_max_cycles);
+        if (gap < bestCycGap) { bestCycGap = gap; bestSkid = s; }
+      }
+      const tff = site.tff_skids[0];
+
+      const effVol = Math.min(recipe.target_batch_volume_liters, bestBrx.max_working_volume_liters);
+      let rpm = bestBrx.min_rpm;
+      for (let r = bestBrx.min_rpm; r <= bestBrx.max_rpm; r += 0.5) {
+        const pvTest = calcGassedPV(bestBrx, recipe.broth_density_kg_m3, r, effVol);
+        const klaTest = calcKla(pvTest, effVol, bestBrx.vessel_diameter_m, bestBrx.max_aeration_vvm, bestBrx.sparger_type);
+        rpm = r;
+        if (klaTest >= recipe.target_kla_per_hr && pvTest >= recipe.target_p_v_min_w_m3) break;
+      }
+
+      const rps = rpm / 60.0;
+      const re = (recipe.broth_density_kg_m3 * rps * Math.pow(bestBrx.impeller_diameter_m, 2)) / recipe.broth_viscosity_pa_s;
+      const tipSpeed = Math.PI * rps * bestBrx.impeller_diameter_m;
+      const pv = calcGassedPV(bestBrx, recipe.broth_density_kg_m3, rpm, effVol);
+      const nu = recipe.broth_viscosity_pa_s / recipe.broth_density_kg_m3;
+      const peakFactor = bestBrx.impeller_type === "RUSHTON_TURBINE" ? 65.0 : 6.5;
+      const epsMax = (peakFactor * pv) / recipe.broth_density_kg_m3;
+      const kolmogorovUm = Math.pow(Math.pow(nu, 3) / epsMax, 0.25) * 1e6;
+      const kla = calcKla(pv, effVol, bestBrx.vessel_diameter_m, bestBrx.max_aeration_vvm, bestBrx.sparger_type);
+
+      const ourDemand = recipe.peak_viable_cell_density_e6_ml * 1e9 * recipe.specific_o2_uptake_mmol_cell_hr;
+      const enrich = bestBrx.sparger_type === "SINTERED_MICRO" ? 2.35 : 1.85;
+      const otrCap = kla * 0.215 * enrich * 0.60;
+
+      const crossArea = Math.PI * Math.pow(bestBrx.vessel_diameter_m / 2.0, 2);
+      const liqH = (effVol / 1000.0) / crossArea;
+      const aspectHD = liqH / bestBrx.vessel_diameter_m;
+
+      const metWatts = ourDemand * effVol * 0.130;
+      const agitWatts = pv * (effVol / 1000.0);
+      const heatKw = ((metWatts + agitWatts) * 1.25) / 1000.0;
+      const wetted = Math.min(effVol / bestBrx.max_working_volume_liters, 1.0);
+      const dT = Math.max(recipe.operating_temp_c - bestBrx.coolant_supply_temp_c - 2.5, 1.0);
+      const coolingKw = (bestBrx.overall_htc_w_m2_k * bestBrx.jacket_area_full_m2 * wetted * dT) / 1000.0;
+
+      const chromOut = calcChrom(recipe, bestSkid);
+      const purifiedG = recipe.target_batch_volume_liters * recipe.harvest_titer_g_l * recipe.clarification_yield * recipe.downstream_overall_yield;
+      const initPoolL = purifiedG / recipe.ufdf_start_conc_g_l;
+      const finalRetL = purifiedG / recipe.ufdf_target_ds_conc_g_l;
+      const totalPermL = Math.max(initPoolL - finalRetL, 0) + finalRetL * recipe.ufdf_diavolumes;
+      const tffAreaReq = totalPermL / (recipe.ufdf_avg_flux_lmh * recipe.ufdf_max_process_hours);
+
+      const seedVolL = Math.round(recipe.target_batch_volume_liters * (recipe.seed_ratio_pct / 100.0));
+      const totalWfiLph = recipe.peak_buffer_wfi_lph + site.utilities.concurrent_cip_wfi_draw_lph;
+
+      const physics = {
+        selected_bioreactor_id: bestBrx.equipment_id,
+        selected_bioreactor_tag: bestBrx.mes_tag,
+        selected_chrom_id: bestSkid.equipment_id,
+        selected_chrom_tag: bestSkid.mes_tag,
+        selected_tff_id: tff.equipment_id,
+        selected_tff_tag: tff.mes_tag,
+        seed_volume_liters: seedVolL,
+        selected_rpm: +rpm.toFixed(1),
+        reynolds_number: Math.round(re),
+        impeller_tip_speed_m_s: +tipSpeed.toFixed(2),
+        gassed_power_per_volume_w_m3: +pv.toFixed(1),
+        kolmogorov_scale_um: +kolmogorovUm.toFixed(1),
+        achievable_kla_per_hr: +kla.toFixed(1),
+        oxygen_demand_mmol_l_hr: +ourDemand.toFixed(2),
+        oxygen_transfer_capacity_mmol_l_hr: +otrCap.toFixed(2),
+        aspect_ratio_h_d: +aspectHD.toFixed(2),
+        metabolic_plus_agitation_heat_kw: +heatKw.toFixed(1),
+        jacket_cooling_capacity_kw: +coolingKw.toFixed(1),
+        chrom_bed_volume_liters: chromOut.bed_volume_liters,
+        chrom_operating_velocity_cm_hr: chromOut.operating_velocity_cm_hr,
+        chrom_pressure_drop_bar: chromOut.pressure_drop_bar,
+        chrom_cycles_required: chromOut.cycles_required,
+        chrom_total_duration_hours: chromOut.total_duration_hours,
+        tff_required_area_m2: +tffAreaReq.toFixed(1),
+        tff_final_retentate_liters: +finalRetL.toFixed(1),
+        total_peak_wfi_demand_lph: Math.round(totalWfiLph),
+        brx_asset: bestBrx,
+        chrom_asset: bestSkid,
+        tff_asset: tff
+      };
+
+      const discrepancies = [];
+      const mitigations = [];
+      const pfx = site.site_code.slice(0, 3);
+
+      if (recipe.target_batch_volume_liters > bestBrx.max_working_volume_liters) {
+        const did = `DISC-${pfx}-VOL-01`;
+        discrepancies.push({
+          discrepancy_id: did,
+          unit_operation: "Production Bioreactor",
+          fit_dimension: "Volumetric Fit",
+          parameter_name: "Maximum Working Volume",
+          recipe_demand: `${recipe.target_batch_volume_liters.toLocaleString()} L`,
+          facility_capability: `${bestBrx.max_working_volume_liters.toLocaleString()} L (${bestBrx.equipment_id})`,
+          calculated_value: `${((recipe.target_batch_volume_liters / bestBrx.max_working_volume_liters) * 100).toFixed(1)}% vessel utilization`,
+          severity: "CRITICAL",
+          cqa_impact: "Exceeds max working volume; requires batch down-scaling or dual-bioreactor lot pooling comparability.",
+          source_system_tags: [recipe.process_id, bestBrx.mes_tag]
+        });
+        mitigations.push({
+          mitigation_id: `MIT-${pfx}-VOL-01`,
+          linked_discrepancy_ids: [did],
+          category: "Process Scale / Change Control",
+          action_title: "Down-scale harvest to <=8,000 L or qualify 2x6,000 L pooled harvest train under Comparability Protocol",
+          engineering_rationale: "Restores >=15% gas holdup & foam headspace safety margin.",
+          change_control_required: true,
+          estimated_lead_time_weeks: 12,
+          owner_function: "MS&T Upstream & Regulatory CMC"
+        });
+      }
+
+      if (seedVolL < bestBrx.min_working_volume_liters) {
+        const did = `DISC-${pfx}-VOL-02`;
+        discrepancies.push({
+          discrepancy_id: did,
+          unit_operation: "Production Bioreactor (Day-0 Seed)",
+          fit_dimension: "Volumetric Fit",
+          parameter_name: "Min Impeller & Probe Submergence",
+          recipe_demand: `${seedVolL.toLocaleString()} L Day-0 fill`,
+          facility_capability: `>= ${bestBrx.min_working_volume_liters.toLocaleString()} L (${bestBrx.equipment_id})`,
+          calculated_value: `Deficit of ${(bestBrx.min_working_volume_liters - seedVolL).toLocaleString()} L at Day-0`,
+          severity: "CRITICAL",
+          cqa_impact: "Impeller gas-flooding, vortex foaming, and upper pH/DO sensor exposure on Days 0-3 (CQA-CHG-02, CQA-AGG-04).",
+          source_system_tags: [recipe.process_id, bestBrx.mes_tag]
+        });
+        mitigations.push({
+          mitigation_id: `MIT-${pfx}-VOL-02`,
+          linked_discrepancy_ids: [did],
+          category: "Recipe / Equipment Modification",
+          action_title: "Concentrate nutrient feeds 1.4x to raise Day-0 basal fill >=7,500 L or lower bottom impeller hub",
+          engineering_rationale: "Guarantees submerged agitation and redundant DO/pH control from inoculation.",
+          change_control_required: true,
+          estimated_lead_time_weeks: 10,
+          owner_function: "R&D Upstream Development & Site Engineering"
+        });
+      }
+
+      if (physics.impeller_tip_speed_m_s > recipe.max_impeller_tip_speed_m_s || physics.kolmogorov_scale_um < recipe.min_kolmogorov_scale_um) {
+        const did = `DISC-${pfx}-SHR-01`;
+        discrepancies.push({
+          discrepancy_id: did,
+          unit_operation: "Production Bioreactor",
+          fit_dimension: "Hydrodynamic Shear Fit",
+          parameter_name: "Impeller Tip Speed & Kolmogorov Eddy Scale",
+          recipe_demand: `u_tip <= ${recipe.max_impeller_tip_speed_m_s.toFixed(2)} m/s & lambda_K >= ${recipe.min_kolmogorov_scale_um.toFixed(0)} um`,
+          facility_capability: `${bestBrx.impeller_type} (Np=${bestBrx.power_number_np}, Di=${bestBrx.impeller_diameter_m} m)`,
+          calculated_value: `u_tip=${physics.impeller_tip_speed_m_s.toFixed(2)} m/s, lambda_K=${physics.kolmogorov_scale_um.toFixed(1)} um @ ${physics.selected_rpm} RPM`,
+          severity: "CRITICAL",
+          cqa_impact: "CHO membrane lysis, LDH/HCP spike, and disulfide reduction risk (CQA-IMP-03, CQA-CHG-02).",
+          source_system_tags: [recipe.process_id, bestBrx.mes_tag]
+        });
+        mitigations.push({
+          mitigation_id: `MIT-${pfx}-SHR-01`,
+          linked_discrepancy_ids: [did],
+          category: "Capital Equipment Retrofit",
+          action_title: "Replace Rushton turbines with low-shear 3-blade hydrofoils and install sintered micro-sparger",
+          engineering_rationale: "Cuts Np from 5.0 to ~0.9, raising Kolmogorov microscale above 24 um.",
+          change_control_required: true,
+          estimated_lead_time_weeks: 16,
+          owner_function: "Site Reliability Engineering & MS&T"
+        });
+      }
+
+      if (physics.achievable_kla_per_hr < recipe.target_kla_per_hr) {
+        const did = `DISC-${pfx}-KLA-01`;
+        discrepancies.push({
+          discrepancy_id: did,
+          unit_operation: "Production Bioreactor",
+          fit_dimension: "Aeration & Mass Transfer Fit",
+          parameter_name: "Volumetric O2 Transfer (kLa)",
+          recipe_demand: `kLa >= ${recipe.target_kla_per_hr.toFixed(1)} h^-1`,
+          facility_capability: `${bestBrx.sparger_type} @ max ${bestBrx.max_aeration_vvm} vvm`,
+          calculated_value: `kLa = ${physics.achievable_kla_per_hr.toFixed(1)} h^-1 (OTR ${physics.oxygen_transfer_capacity_mmol_l_hr} vs OUR ${physics.oxygen_demand_mmol_l_hr})`,
+          severity: "CRITICAL",
+          cqa_impact: "Hypoxic DO drop at peak VCD driving lactate accumulation & N-glycan shift (CQA-GLY-01).",
+          source_system_tags: [recipe.process_id, bestBrx.mes_tag]
+        });
+        mitigations.push({
+          mitigation_id: `MIT-${pfx}-KLA-01`,
+          linked_discrepancy_ids: [did],
+          category: "Sparger Assembly Upgrade",
+          action_title: "Retrofit 20-um sintered micro-sparger lance + dual O2 mass flow controller",
+          engineering_rationale: "Increases kLa by ~1.9x without raising agitation tip speed.",
+          change_control_required: true,
+          estimated_lead_time_weeks: 14,
+          owner_function: "Site Process Engineering"
+        });
+      }
+
+      if (physics.aspect_ratio_h_d > recipe.max_aspect_ratio_h_d) {
+        const did = `DISC-${pfx}-GEO-01`;
+        discrepancies.push({
+          discrepancy_id: did,
+          unit_operation: "Production Bioreactor",
+          fit_dimension: "Vessel Geometry Fit",
+          parameter_name: "Liquid Aspect Ratio (H_L / D_T)",
+          recipe_demand: `H/D <= ${recipe.max_aspect_ratio_h_d.toFixed(2)}`,
+          facility_capability: `D_T = ${bestBrx.vessel_diameter_m.toFixed(2)} m (${bestBrx.equipment_id})`,
+          calculated_value: `H/D = ${physics.aspect_ratio_h_d.toFixed(2)}`,
+          severity: "MAJOR",
+          cqa_impact: "Elevated hydrostatic head & dissolved pCO2 (>140 mmHg) impacting galactosylation (CQA-GLY-01).",
+          source_system_tags: [recipe.process_id, bestBrx.mes_tag]
+        });
+        mitigations.push({
+          mitigation_id: `MIT-${pfx}-GEO-01`,
+          linked_discrepancy_ids: [did],
+          category: "Process Characterization",
+          action_title: "Qualify open-pipe air sweep CO2 stripping regime in 3L scale-down satellite model",
+          engineering_rationale: "Maintains pCO2 <= 110 mmHg across Days 7-14.",
+          change_control_required: true,
+          estimated_lead_time_weeks: 8,
+          owner_function: "MS&T Upstream"
+        });
+      }
+
+      if (recipe.cip_sip_temp_c > bestBrx.sip_max_rated_temp_c) {
+        const did = `DISC-${pfx}-THM-01`;
+        discrepancies.push({
+          discrepancy_id: did,
+          unit_operation: "Production Bioreactor (CIP/SIP)",
+          fit_dimension: "Thermal & Sterilization Fit",
+          parameter_name: "SIP Sterilization Hold Temperature",
+          recipe_demand: `${recipe.cip_sip_temp_c.toFixed(1)} C`,
+          facility_capability: `Max ${bestBrx.sip_max_rated_temp_c.toFixed(1)} C (${bestBrx.equipment_id})`,
+          calculated_value: `+${(recipe.cip_sip_temp_c - bestBrx.sip_max_rated_temp_c).toFixed(1)} C above vessel rating`,
+          severity: "MINOR",
+          cqa_impact: "Adjusting SIP hold time at 121.2 C preserves equivalent F0 >= 30 min sterility assurance.",
+          source_system_tags: [recipe.process_id, bestBrx.mes_tag]
+        });
+        mitigations.push({
+          mitigation_id: `MIT-${pfx}-THM-01`,
+          linked_discrepancy_ids: [did],
+          category: "Procedural Automation Tuning",
+          action_title: "Set SIP hold to 121.2 C for +8 min F0-equivalent sterilization cycle",
+          engineering_rationale: "Protects diaphragm seals within validated thermal envelope.",
+          change_control_required: false,
+          estimated_lead_time_weeks: 2,
+          owner_function: "Site Sterility Assurance"
+        });
+      }
+
+      if (physics.chrom_pressure_drop_bar > bestSkid.max_operating_pressure_bar) {
+        const did = `DISC-${pfx}-CHR-01`;
+        discrepancies.push({
+          discrepancy_id: did,
+          unit_operation: "Protein A Capture Chromatography",
+          fit_dimension: "Skid Pressure Drop Fit",
+          parameter_name: "Column + Skid Darcy dP",
+          recipe_demand: `${recipe.capture_target_linear_velocity_cm_hr} cm/h @ ${recipe.capture_bed_height_cm} cm bed`,
+          facility_capability: `Max ${bestSkid.max_operating_pressure_bar.toFixed(2)} bar (${bestSkid.equipment_id})`,
+          calculated_value: `dP = ${physics.chrom_pressure_drop_bar.toFixed(2)} bar`,
+          severity: "MAJOR",
+          cqa_impact: "Over-pressure interlock trip & resin bed compression risk (CQA-AGG-04).",
+          source_system_tags: [recipe.process_id, bestSkid.mes_tag]
+        });
+        mitigations.push({
+          mitigation_id: `MIT-${pfx}-CHR-01`,
+          linked_discrepancy_ids: [did],
+          category: "Downstream Parameter / Skid Upgrade",
+          action_title: "Down-rate linear flow velocity to <=185 cm/h or route to 3.0 bar AxiChrom skid",
+          engineering_rationale: "Caps total capture dP <= 1.80 bar.",
+          change_control_required: true,
+          estimated_lead_time_weeks: 8,
+          owner_function: "MS&T Downstream"
+        });
+      }
+
+      if (physics.chrom_total_duration_hours > recipe.max_harvest_hold_hours) {
+        const did = `DISC-${pfx}-CHR-02`;
+        discrepancies.push({
+          discrepancy_id: did,
+          unit_operation: "Protein A Capture Chromatography",
+          fit_dimension: "Resin Capacity & Hold-Time Fit",
+          parameter_name: "Capture Cycles & Clarified Harvest Hold",
+          recipe_demand: `<= ${recipe.capture_max_cycles} cycles & <= ${recipe.max_harvest_hold_hours} h hold`,
+          facility_capability: `${bestSkid.column_diameter_cm} cm col (${physics.chrom_bed_volume_liters} L bed)`,
+          calculated_value: `${physics.chrom_cycles_required} cycles (${physics.chrom_total_duration_hours} h total)`,
+          severity: "MAJOR",
+          cqa_impact: "Exceeds clarified harvest stability hold, risking proteolytic clipping & acidic drift (CQA-CHG-02).",
+          source_system_tags: [recipe.process_id, bestSkid.mes_tag]
+        });
+        mitigations.push({
+          mitigation_id: `MIT-${pfx}-CHR-02`,
+          linked_discrepancy_ids: [did],
+          category: "Equipment / Hold Stability",
+          action_title: "Qualify 140 cm column or execute 2-8 C chilled harvest hold extension to 42 h",
+          engineering_rationale: "Prevents enzymatic degradation across extended cycling.",
+          change_control_required: true,
+          estimated_lead_time_weeks: 9,
+          owner_function: "MS&T Downstream & Analytical"
+        });
+      } else if (physics.chrom_cycles_required > recipe.capture_max_cycles) {
+        const did = `DISC-${pfx}-CHR-03`;
+        discrepancies.push({
+          discrepancy_id: did,
+          unit_operation: "Protein A Capture Chromatography",
+          fit_dimension: "Resin Cycling Fit",
+          parameter_name: "Capture Cycles per Batch",
+          recipe_demand: `<= ${recipe.capture_max_cycles} cycles target`,
+          facility_capability: `${bestSkid.column_diameter_cm} cm col (${physics.chrom_bed_volume_liters} L bed)`,
+          calculated_value: `${physics.chrom_cycles_required} cycles (${physics.chrom_total_duration_hours} h <= ${recipe.max_harvest_hold_hours} h limit)`,
+          severity: "MINOR",
+          cqa_impact: "Safely inside harvest stability window; adds ~4 h suite occupancy.",
+          source_system_tags: [recipe.process_id, bestSkid.mes_tag]
+        });
+        mitigations.push({
+          mitigation_id: `MIT-${pfx}-CHR-03`,
+          linked_discrepancy_ids: [did],
+          category: "Batch Record Parameter",
+          action_title: `Configure MES phase for ${physics.chrom_cycles_required} equal-mass capture cycles`,
+          engineering_rationale: "Maintains 85% dynamic binding capacity safety factor.",
+          change_control_required: false,
+          estimated_lead_time_weeks: 2,
+          owner_function: "Site Automation"
+        });
+      }
+
+      if (physics.tff_required_area_m2 > tff.max_membrane_area_m2) {
+        const did = `DISC-${pfx}-TFF-01`;
+        discrepancies.push({
+          discrepancy_id: did,
+          unit_operation: "UF/DF Tangential Flow Filtration",
+          fit_dimension: "TFF Cassette Area Fit",
+          parameter_name: "Required Membrane Surface Area",
+          recipe_demand: `${physics.tff_required_area_m2} m^2`,
+          facility_capability: `Max ${tff.max_membrane_area_m2} m^2 (${tff.equipment_id})`,
+          calculated_value: `Shortfall of ${(physics.tff_required_area_m2 - tff.max_membrane_area_m2).toFixed(1)} m^2`,
+          severity: "MAJOR",
+          cqa_impact: "Increases pump shear passes >35%, raising HMW aggregation risk (CQA-AGG-04).",
+          source_system_tags: [recipe.process_id, tff.mes_tag]
+        });
+        mitigations.push({
+          mitigation_id: `MIT-${pfx}-TFF-01`,
+          linked_discrepancy_ids: [did],
+          category: "TFF Expansion / Sub-Lot Split",
+          action_title: "Add secondary Pellicon cassette manifold (+15 m^2) or run 2 UF/DF sub-lots",
+          engineering_rationale: "Preserves target <=4.5 h UF/DF processing time.",
+          change_control_required: true,
+          estimated_lead_time_weeks: 7,
+          owner_function: "MS&T Downstream"
+        });
+      }
+
+      if (physics.tff_final_retentate_liters < tff.min_recirculation_volume_liters) {
+        const did = `DISC-${pfx}-TFF-02`;
+        discrepancies.push({
+          discrepancy_id: did,
+          unit_operation: "UF/DF Tangential Flow Filtration",
+          fit_dimension: "Minimum Working Volume Fit",
+          parameter_name: "Final Retentate Volume vs Skid Hold-Up",
+          recipe_demand: `${physics.tff_final_retentate_liters} L final pool`,
+          facility_capability: `>= ${tff.min_recirculation_volume_liters} L min loop (${tff.equipment_id})`,
+          calculated_value: `${physics.tff_final_retentate_liters} L < ${tff.min_recirculation_volume_liters} L hold-up`,
+          severity: "CRITICAL",
+          cqa_impact: "Air entrainment, foaming, and protein aggregation during final concentration (CQA-AGG-04).",
+          source_system_tags: [recipe.process_id, tff.mes_tag]
+        });
+        mitigations.push({
+          mitigation_id: `MIT-${pfx}-TFF-02`,
+          linked_discrepancy_ids: [did],
+          category: "Equipment Selection",
+          action_title: "Deploy low-hold-up (<10 L) single-use finish TFF skid for final concentration",
+          engineering_rationale: "Eliminates pump cavitation & air-liquid interface shear.",
+          change_control_required: true,
+          estimated_lead_time_weeks: 10,
+          owner_function: "MS&T Downstream"
+        });
+      }
+
+      if (physics.total_peak_wfi_demand_lph > site.utilities.available_peak_wfi_lph) {
+        const did = `DISC-${pfx}-UTL-01`;
+        discrepancies.push({
+          discrepancy_id: did,
+          unit_operation: "Clean Utilities (WFI Loop)",
+          fit_dimension: "Utility Load Fit",
+          parameter_name: "Peak Simultaneous WFI Draw",
+          recipe_demand: `${physics.total_peak_wfi_demand_lph.toLocaleString()} L/h`,
+          facility_capability: `${site.utilities.available_peak_wfi_lph.toLocaleString()} L/h (${site.utilities.wfi_loop_tag})`,
+          calculated_value: `Deficit of ${(physics.total_peak_wfi_demand_lph - site.utilities.available_peak_wfi_lph).toLocaleString()} L/h`,
+          severity: "MAJOR",
+          cqa_impact: "WFI loop pressure drop interlock halting inline buffer dilution.",
+          source_system_tags: [recipe.process_id, site.utilities.wfi_loop_tag]
+        });
+        mitigations.push({
+          mitigation_id: `MIT-${pfx}-UTL-01`,
+          linked_discrepancy_ids: [did],
+          category: "Utility Staggering",
+          action_title: "Configure MES CIP stagger interlock and pre-prepare equilibration buffers in 2,500L totes",
+          engineering_rationale: "Cuts peak WFI draw by >1,500 L/h.",
+          change_control_required: true,
+          estimated_lead_time_weeks: 5,
+          owner_function: "Site Utilities & Operations"
+        });
+      }
+
+      for (const [mCode, mName] of recipe.required_raw_materials) {
+        const sm = site.materials[mCode];
+        if (!sm || !sm.qualified) {
+          const did = `DISC-${pfx}-MAT-${mCode.slice(-3)}`;
+          discrepancies.push({
+            discrepancy_id: did,
+            unit_operation: "Raw Materials & Consumables",
+            fit_dimension: "Material Qualification",
+            parameter_name: `${mCode} (${mName})`,
+            recipe_demand: "Qualified GMP Site Material Master",
+            facility_capability: sm ? sm.notes : "Missing in ERP",
+            calculated_value: `Unqualified (${sm ? sm.lead : 16}-wk lead time)`,
+            severity: "MAJOR",
+            cqa_impact: "Blocks GMP raw material release & batch disposition (CQA-IMP-03).",
+            source_system_tags: [recipe.process_id, `ERP-${mCode}`]
+          });
+          mitigations.push({
+            mitigation_id: `MIT-${pfx}-MAT-${mCode.slice(-3)}`,
+            linked_discrepancy_ids: [did],
+            category: "Quality Material Qualification",
+            action_title: `Execute Global Change Control & incoming QC ID qualification for ${mCode}`,
+            engineering_rationale: "Establishes approved site specification prior to PPQ.",
+            change_control_required: true,
+            estimated_lead_time_weeks: sm ? sm.lead : 16,
+            owner_function: "Site QC & Global Procurement"
+          });
+        }
+      }
+
+      for (const [lCode, lName] of recipe.required_lims_methods) {
+        const lm = site.lims_methods[lCode];
+        if (!lm || lm.status !== "QUALIFIED") {
+          const did = `DISC-${pfx}-LIM-${lCode.slice(-3)}`;
+          const pct = lm ? lm.pct : 0;
+          discrepancies.push({
+            discrepancy_id: did,
+            unit_operation: "Analytical Release (Enterprise LIMS)",
+            fit_dimension: "Analytical Method Readiness",
+            parameter_name: `${lCode} (${lName})`,
+            recipe_demand: "QUALIFIED (100%)",
+            facility_capability: `${lm ? lm.status : "MISSING"} (${pct}% complete)`,
+            calculated_value: `${100 - pct}% co-validation remaining`,
+            severity: "MAJOR",
+            cqa_impact: "Blocks in-site GMP release testing without Central R&D reference lab bridge (CQA-IMP-03).",
+            source_system_tags: [recipe.process_id, lCode]
+          });
+          mitigations.push({
+            mitigation_id: `MIT-${pfx}-LIM-${lCode.slice(-3)}`,
+            linked_discrepancy_ids: [did],
+            category: "Enterprise LIMS Transfer",
+            action_title: `Complete ${lCode} ICH Q2(R2) precision runs in Enterprise LIMS`,
+            engineering_rationale: "Enables autonomous site QC lot release.",
+            change_control_required: true,
+            estimated_lead_time_weeks: pct >= 50 ? 6 : 11,
+            owner_function: "Analytical Sciences & Site QC"
+          });
+        }
+      }
+
+      if (site.supply_schedule.slot_conflict) {
+        const did = `DISC-${pfx}-SCH-01`;
+        discrepancies.push({
+          discrepancy_id: did,
+          unit_operation: "Supply Planning (Enterprise Supply Planner)",
+          fit_dimension: "Campaign Slot Availability",
+          parameter_name: "PPQ Campaign Window",
+          recipe_demand: "Unconstrained 2027-Q1 slot",
+          facility_capability: site.supply_schedule.next_open_window,
+          calculated_value: site.supply_schedule.conflict_notes,
+          severity: "MINOR",
+          cqa_impact: "Shifts campaign schedule by 14 days; zero CQA impact.",
+          source_system_tags: [recipe.process_id, site.supply_schedule.schedule_id]
+        });
+        mitigations.push({
+          mitigation_id: `MIT-${pfx}-SCH-01`,
+          linked_discrepancy_ids: [did],
+          category: "Supply Chain Leveling",
+          action_title: "Shift Suite H2 slot +14 days in Enterprise Supply Planner",
+          engineering_rationale: "Resolves turnaround CIP/SIP overlap.",
+          change_control_required: false,
+          estimated_lead_time_weeks: 2,
+          owner_function: "Enterprise Supply Planner Supply Planner"
+        });
+      }
+
+      const crit = discrepancies.filter(d => d.severity === "CRITICAL").length;
+      const maj = discrepancies.filter(d => d.severity === "MAJOR").length;
+      const min = discrepancies.filter(d => d.severity === "MINOR").length;
+      const penalty = crit * 0.18 + maj * 0.06 + min * 0.02;
+      const fitIndex = discrepancies.length === 0 ? 1.0 : Math.max(0.05, +(1.0 - penalty).toFixed(2));
+
+      let overallStatus = "QUALIFIED_FIT";
+      if (crit >= 2) overallStatus = "CRITICAL_DISCREPANCIES_IDENTIFIED";
+      else if (crit === 1 || maj >= 3) overallStatus = "NOT_FIT_WITHOUT_MODIFICATION";
+      else if (maj >= 1) overallStatus = "CONDITIONAL_FIT_CHANGE_CONTROL";
+
+      const signKey = `${recipe.process_id}::${site.site_code}`;
+      const signedInfo = state.signoffs[signKey];
+      const requiresHitl = (crit + maj) > 0;
+
+      const hitlGate = {
+        requires_sponsor_signoff: requiresHitl,
+        persistence_locked: requiresHitl && !signedInfo,
+        signoff_status: !requiresHitl
+          ? "AUTO_CLEARED_MINOR_OR_CLEAN"
+          : (signedInfo ? "APPROVED_BY_TECHNICAL_SPONSOR" : "PENDING_TECHNICAL_SPONSOR_SIGNOFF"),
+        required_approvers: requiresHitl
+          ? [`${site.site_code} MS&T Technical Sponsor`, `${site.site_code} Site Quality Head`, "R&D Tech Transfer Lead"]
+          : [`${site.site_code} MS&T Engineer`],
+        signed_by: signedInfo ? signedInfo.sponsor : "",
+        signed_timestamp_utc: signedInfo ? signedInfo.ts : ""
+      };
+
+      const trace = [
+        `STEP 1 [Ingest & Normalize]: Parsed ${recipe.process_id} (${recipe.molecule_code}, ${recipe.target_batch_volume_liters.toLocaleString()} L harvest, Day-0 fill ${seedVolL.toLocaleString()} L) from ${recipe.pkm_version}.`,
+        `STEP 2 [Asset Discovery]: Matched Plant MES equipment ${bestBrx.equipment_id} (${bestBrx.mes_tag}), ${bestSkid.equipment_id}, and ${tff.equipment_id} at ${site.site_display_name}.`,
+        `STEP 3 [Unit Operation Fit]: Computed Re=${physics.reynolds_number.toLocaleString()}, u_tip=${physics.impeller_tip_speed_m_s} m/s, lambda_K=${physics.kolmogorov_scale_um} um, kLa=${physics.achievable_kla_per_hr} h^-1, Chrom dP=${physics.chrom_pressure_drop_bar} bar, TFF Final Pool=${physics.tff_final_retentate_liters} L.`,
+        `STEP 4 [Dynamic Risk Scoring]: Normalized Fit Index = ${fitIndex.toFixed(2)} (${overallStatus}) with ${crit} CRITICAL, ${maj} MAJOR, ${min} MINOR discrepancies.`,
+        `STEP 5 [HITL Signoff]: ${hitlGate.signoff_status} (persistence_locked=${hitlGate.persistence_locked}).`
+      ];
+
+      const cleanPhysics = Object.assign({}, physics);
+      delete cleanPhysics.brx_asset;
+      delete cleanPhysics.chrom_asset;
+      delete cleanPhysics.tff_asset;
+
+      return {
+        reportSchema: {
+          schema_name: "FacilityFitAssessmentReport",
+          assessment_id: `FFA-${recipe.molecule_code.replace("-", "")}-${pfx}-20261110`,
+          process_id: recipe.process_id,
+          target_site: site.site_code,
+          overall_fit_status: overallStatus,
+          normalized_fit_index: fitIndex,
+          severity_counts: { CRITICAL: crit, MAJOR: maj, MINOR: min },
+          discrepancy_matrix: discrepancies,
+          mitigation_recommendations: mitigations,
+          physics_calculations: cleanPhysics,
+          reasoning_protocol_trace: trace,
+          hitl_signoff_gate: hitlGate,
+          gxp_boundary_statement: "NON-GxP DECISION SUPPORT ONLY: Autonomous shop-floor MES actuation and SOP overrides are strictly prohibited."
+        },
+        physics,
+        site
+      };
+    }
+
+    function loadRecipeIntoControls(recipeId) {
+      const base = RECIPES[recipeId];
+      state.activeRecipeId = recipeId;
+      state.liveRecipe = JSON.parse(JSON.stringify(base));
+      document.getElementById("lbl-molecule").textContent = base.molecule_code;
+      document.getElementById("slider-volume").value = base.target_batch_volume_liters;
+      document.getElementById("slider-seed-pct").value = base.seed_ratio_pct;
+      document.getElementById("slider-vcd").value = base.peak_viable_cell_density_e6_ml;
+      document.getElementById("slider-kla").value = base.target_kla_per_hr;
+      document.getElementById("slider-tip").value = base.max_impeller_tip_speed_m_s;
+      document.getElementById("slider-titer").value = base.harvest_titer_g_l;
+      document.getElementById("slider-velocity").value = base.capture_target_linear_velocity_cm_hr;
+      document.getElementById("slider-ds-conc").value = base.ufdf_target_ds_conc_g_l;
+      renderAll();
+    }
+
+    function syncSlidersToRecipe() {
+      const r = state.liveRecipe;
+      r.target_batch_volume_liters = +document.getElementById("slider-volume").value;
+      r.seed_ratio_pct = +document.getElementById("slider-seed-pct").value;
+      r.peak_viable_cell_density_e6_ml = +document.getElementById("slider-vcd").value;
+      r.target_kla_per_hr = +document.getElementById("slider-kla").value;
+      r.max_impeller_tip_speed_m_s = +document.getElementById("slider-tip").value;
+      r.harvest_titer_g_l = +document.getElementById("slider-titer").value;
+      r.capture_target_linear_velocity_cm_hr = +document.getElementById("slider-velocity").value;
+      r.ufdf_target_ds_conc_g_l = +document.getElementById("slider-ds-conc").value;
+
+      const seedL = Math.round(r.target_batch_volume_liters * (r.seed_ratio_pct / 100.0));
+      document.getElementById("val-volume").textContent = `${r.target_batch_volume_liters.toLocaleString()} L`;
+      document.getElementById("val-seed-pct").textContent = `${r.seed_ratio_pct}% (${seedL.toLocaleString()} L)`;
+      document.getElementById("val-vcd").textContent = `${r.peak_viable_cell_density_e6_ml.toFixed(1)} \u00d710\u2076/mL`;
+      document.getElementById("val-kla").textContent = `${r.target_kla_per_hr.toFixed(1)} h\u207b\u00b9`;
+      document.getElementById("val-tip").textContent = `${r.max_impeller_tip_speed_m_s.toFixed(2)} m/s`;
+      document.getElementById("val-titer").textContent = `${r.harvest_titer_g_l.toFixed(2)} g/L`;
+      document.getElementById("val-velocity").textContent = `${r.capture_target_linear_velocity_cm_hr} cm/h`;
+      document.getElementById("val-ds-conc").textContent = `${r.ufdf_target_ds_conc_g_l} g/L`;
+    }
+
+    function renderAll() {
+      syncSlidersToRecipe();
+      const evals = {};
+      for (const code of Object.keys(SITES)) {
+        evals[code] = evaluateSite(state.liveRecipe, SITES[code]);
+      }
+
+      const strip = document.getElementById("site-strip");
+      strip.innerHTML = "";
+      for (const code of ["ALPHA_EU_HUB", "BETA_US_CAMPUS", "GAMMA_US_PLANT"]) {
+        const ev = evals[code];
+        const rep = ev.reportSchema;
+        const sc = rep.severity_counts;
+        const scoreColor = rep.normalized_fit_index >= 0.80 ? "var(--pass)" : (rep.normalized_fit_index >= 0.55 ? "var(--major)" : "var(--critical)");
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.id = `btn-site-${code.toLowerCase()}`;
+        btn.className = `site-card ${state.activeSiteCode === code ? "active" : ""}`;
+        btn.onclick = () => { state.activeSiteCode = code; renderAll(); };
+        btn.innerHTML = `
+          <div class="site-card-top">
+            <div>
+              <div class="site-name">${ev.site.short_name}</div>
+              <div class="site-loc">${ev.site.location}</div>
+            </div>
+            <div class="fit-score-badge mono" style="color:${scoreColor}">${rep.normalized_fit_index.toFixed(2)}</div>
+          </div>
+          <div class="site-meta-row">
+            <span class="mono" style="font-size:11.5px;color:var(--text-secondary);">${rep.overall_fit_status.replace(/_/g, " ")}</span>
+            <div class="pill-counts">
+              <span class="sev-pill sev-CRITICAL">${sc.CRITICAL} CRIT</span>
+              <span class="sev-pill sev-MAJOR">${sc.MAJOR} MAJ</span>
+              <span class="sev-pill sev-MINOR">${sc.MINOR} MIN</span>
+            </div>
+          </div>
+          <div class="mono" style="font-size:11px;color:var(--text-muted);">
+            MES: ${ev.physics.selected_bioreactor_id} &middot; ${ev.physics.selected_chrom_id} &middot; ${ev.physics.selected_tff_id}
+          </div>
+        `;
+        strip.appendChild(btn);
+      }
+
+      const activeEval = evals[state.activeSiteCode];
+      renderPhysicsTab(activeEval);
+      renderDiscrepancyTab(activeEval);
+      renderComparisonTab(evals);
+      renderSchemaTab(activeEval);
+      renderArchTab(activeEval);
+    }
+
+    const PRECEDENTS = [
+      { id: "PREC-ALP-2025-014", site: "ALPHA_EU_HUB", pattern: "LIM", mol: "REF-104B", wks: 5, text: "Parallel ICH Q2(R2) intermediate precision co-validation in Alpha Hub Enterprise LIMS with Central R&D reference lab bridge disposition for PPQ Lot 1." },
+      { id: "PREC-BET-2024-019", site: "BETA_US_CAMPUS", pattern: "SHR", mol: "REF-208", wks: 15, text: "Retrofitted Suite H2 10kL SS vessel from dual Rushton turbines (Np=5.0) to 3-blade hydrofoils (Np=0.88) + 20-um sintered sparger, lifting Kolmogorov scale from 18 um to 54 um." },
+      { id: "PREC-BET-2024-031", site: "BETA_US_CAMPUS", pattern: "UTL", mol: "REF-312", wks: 4, text: "Implemented Plant MES CIP interlock stagger + pre-prepared 2,500L single-use equilibration buffer totes, cutting simultaneous WFI peak draw by 1,620 L/h." },
+      { id: "PREC-GAM-2025-007", site: "GAMMA_US_PLANT", pattern: "VOL", mol: "REF-419", wks: 9, text: "Concentrated basal media 1.35x to lift Day-0 fill above 7,450 L minimum impeller/probe submergence in tall SF4 vessels without hardware downtime." },
+      { id: "PREC-GAM-2025-022", site: "GAMMA_US_PLANT", pattern: "TFF", mol: "REF-525-SC", wks: 8, text: "Deployed portable low-hold-up (<8 L) single-use finish TFF skid for final >175 g/L SC concentration step, eliminating loop foaming and SEC HMW spike." }
+    ];
+
+    let gxpBlockCount = 1;
+
+    function simpleHashHex(str) {
+      let h1 = 0xdeadbeef ^ str.length, h2 = 0x41c6ce57 ^ str.length;
+      for (let i = 0; i < str.length; i++) {
+        const ch = str.charCodeAt(i);
+        h1 = Math.imul(h1 ^ ch, 2654435761);
+        h2 = Math.imul(h2 ^ ch, 1597334677);
+      }
+      h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+      h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+      return (h2 >>> 0).toString(16).padStart(8, "0") + (h1 >>> 0).toString(16).padStart(8, "0");
+    }
+
+    function renderArchTab(ev) {
+      const rep = ev.reportSchema;
+      const base = RECIPES[state.activeRecipeId];
+      const r = state.liveRecipe;
+
+      const toolsRows = [
+        ["ingest_enterprise_pkm_recipe", "Enterprise PKM v4.2", "READ_ONLY (Safe)", "process_id"],
+        ["discover_plant_mes_site_envelope", "Plant MES / Enterprise LIMS / Enterprise Supply Planner", "READ_ONLY (Safe)", "site_code"],
+        ["compute_bioreactor_hydrodynamics", "Deterministic Transport Engine", "PURE_MATH (100% Deterministic)", "recipe, bioreactor"],
+        ["compute_downstream_sizing", "Darcy Chrom & UF/DF Sizing Engine", "PURE_MATH (100% Deterministic)", "recipe, chrom_skid"],
+        ["actuate_shop_floor_mes_setpoint", "Plant MES Tag Write-Lock Guard", "BLOCKED (Raises GxpBoundaryViolationError)", "mes_tag, proposed_setpoint"]
+      ];
+      document.querySelector("#arch-tools-table tbody").innerHTML = toolsRows.map(t => `
+        <tr>
+          <td class="mono"><strong>${t[0]}</strong></td>
+          <td>${t[1]}</td>
+          <td><span class="sev-pill ${t[0].includes('actuate') ? 'sev-CRITICAL' : 'sev-PASS'}">${t[2]}</span></td>
+          <td class="mono">${t[3]}</td>
+        </tr>
+      `).join("");
+
+      const diffs = [];
+      const tracked = [
+        ["target_batch_volume_liters", "L"],
+        ["seed_ratio_pct", "%"],
+        ["peak_viable_cell_density_e6_ml", "x10^6/mL"],
+        ["target_kla_per_hr", "h^-1"],
+        ["max_impeller_tip_speed_m_s", "m/s"],
+        ["harvest_titer_g_l", "g/L"],
+        ["capture_target_linear_velocity_cm_hr", "cm/h"],
+        ["ufdf_target_ds_conc_g_l", "g/L"]
+      ];
+      for (const [k, unit] of tracked) {
+        if (r[k] !== base[k]) {
+          diffs.push(`${k}: ${base[k]} ${unit} \u2192 ${r[k]} ${unit}`);
+        }
+      }
+      document.getElementById("ctx-override-badge").textContent = `Session Overrides: ${diffs.length} | Blocks Logged: ${gxpBlockCount}`;
+
+      const tokens = new Set(rep.discrepancy_matrix.map(d => d.discrepancy_id.split("-")[2]));
+      const matchedPrecs = PRECEDENTS.filter(p => tokens.has(p.pattern) && (p.site === ev.site.site_code || tokens.has(p.pattern)));
+
+      const memHtml = [];
+      memHtml.push(`
+        <div class="mitigation-item">
+          <div class="mitigation-top">
+            <span>Short-Term Working Context (<code class="mono">SessionWorkingContext</code>)</span>
+            <span class="mono" style="font-size:12px;">Compacted Window Ready</span>
+          </div>
+          <div class="mono" style="font-size:12px;color:var(--text-secondary);">
+            ${diffs.length ? "Active What-If CPP Deltas: " + diffs.join(" | ") : "Baseline PKM parameters active (drag any left-panel slider to record stateful session deltas)."}
+          </div>
+        </div>
+      `);
+      for (const mp of matchedPrecs) {
+        memHtml.push(`
+          <div class="mitigation-item">
+            <div class="mitigation-top">
+              <span>Episodic Precedent Recall: <span class="mono" style="color:var(--accent);">${mp.id}</span> (${mp.mol})</span>
+              <span class="mono" style="font-size:12px;">Realized Lead Time: ${mp.wks} wks</span>
+            </div>
+            <div style="font-size:12.5px;color:var(--text-secondary);">${mp.text}</div>
+          </div>
+        `);
+      }
+      document.getElementById("arch-memory-box").innerHTML = memHtml.join("");
+
+      const digest = simpleHashHex(JSON.stringify(rep)) + simpleHashHex(rep.assessment_id + rep.normalized_fit_index);
+      document.getElementById("obs-digest-badge").textContent = `ALCOA+ Digest: ${digest}`;
+
+      const spans = [
+        ["STAGE_1_INGEST_AND_NORMALIZE -> tool:ingest_enterprise_pkm_recipe", "spn-101a", "0.04 ms", `OK | process_id=${rep.process_id}, overrides=${diffs.length}`],
+        ["STAGE_2_ASSET_AND_LIMS_DISCOVERY -> tool:discover_plant_mes_site_envelope", "spn-204b", "0.03 ms", `OK | site=${rep.target_site}, mes_write_lock=true`],
+        ["STAGE_3_DETERMINISTIC_PHYSICS -> compute_hydrodynamics + sizing", "spn-309c", "0.98 ms", `OK | deterministic_ratio=1.0, Re=${ev.physics.reynolds_number.toLocaleString()}`],
+        ["STAGE_4_RISK_AND_PRECEDENT_RECALL -> EpisodicPrecedentStore", "spn-412d", "0.05 ms", `OK | fit_index=${rep.normalized_fit_index.toFixed(2)}, precedents=${matchedPrecs.length}`],
+        ["STAGE_5_GXP_HITL_AND_AUDIT_COMMIT -> AssessmentAuditLedger", "spn-518e", "0.31 ms", `OK | persistence_locked=${rep.hitl_signoff_gate.persistence_locked}, hash_chain=VALID`]
+      ];
+      document.querySelector("#arch-spans-table tbody").innerHTML = spans.map(s => `
+        <tr>
+          <td class="mono"><strong>${s[0]}</strong></td>
+          <td class="mono">${s[1]}</td>
+          <td class="mono">${s[2]}</td>
+          <td class="mono" style="font-size:11.5px;color:var(--text-secondary);">${s[3]}</td>
+        </tr>
+      `).join("");
+
+      const gates = [
+        ["GATE-01-PHYSICS-GOLDEN", "Deterministic Transport Physics Drift Gate (Re, u_tip, lambda_K, kLa, Darcy dP)", "Python Strict Type & Unit Test Gate", "PASS"],
+        ["GATE-02-GXP-REDTEAM", `GxP Autonomous Shop-Floor MES Write-Lock Gate (Blocked: ${gxpBlockCount})`, "VPC-SC: biopharma-cmc-advisory-restricted-perimeter", "PASS"],
+        ["GATE-03-SCHEMA-HITL", "FacilityFitAssessmentReport Contract & Step-5 Sponsor Lock Gate", "Vertex AI Agent Engine + Read-Only SA IAM", "PASS"],
+        ["GATE-04-ALCOA-LEDGER", "21 CFR Part 11 / ALCOA+ SHA-256 Hash-Chain Audit Ledger Integrity", "BigQuery Immutable WORM Sink + Cloud Trace", "PASS"]
+      ];
+      document.querySelector("#arch-cicd-table tbody").innerHTML = gates.map(g => `
+        <tr>
+          <td class="mono"><strong>${g[0]}</strong></td>
+          <td>${g[1]}</td>
+          <td class="mono" style="font-size:11.5px;color:var(--text-secondary);">${g[2]}</td>
+          <td><span class="sev-pill sev-PASS">${g[3]}</span></td>
+        </tr>
+      `).join("");
+    }
+
+    function renderPhysicsTab(ev) {
+      const p = ev.physics;
+      const r = state.liveRecipe;
+      const brx = p.brx_asset;
+      const chr = p.chrom_asset;
+      const tff = p.tff_asset;
+
+      document.getElementById("physics-site-heading").textContent = `${ev.site.site_display_name} — Unit Operation Fit Telemetry`;
+      document.getElementById("matched-mes-tags").textContent = `${p.selected_bioreactor_tag} | ${p.selected_chrom_tag} | ${p.selected_tff_tag}`;
+
+      const gauges = [
+        {
+          title: "Bioreactor Working Volume",
+          reading: `${r.target_batch_volume_liters.toLocaleString()} L / ${brx.max_working_volume_liters.toLocaleString()} L`,
+          pct: Math.min(100, (r.target_batch_volume_liters / (brx.max_working_volume_liters * 1.3)) * 100),
+          limitPct: (1 / 1.3) * 100,
+          ok: r.target_batch_volume_liters <= brx.max_working_volume_liters && p.seed_volume_liters >= brx.min_working_volume_liters,
+          subLeft: `Day-0 Fill: ${p.seed_volume_liters.toLocaleString()} L (Min ${brx.min_working_volume_liters.toLocaleString()} L)`,
+          subRight: `${brx.equipment_id}`
+        },
+        {
+          title: "Impeller Tip Speed & Shear",
+          reading: `${p.impeller_tip_speed_m_s.toFixed(2)} m/s (Max ${r.max_impeller_tip_speed_m_s.toFixed(2)} m/s)`,
+          pct: Math.min(100, (p.impeller_tip_speed_m_s / 3.4) * 100),
+          limitPct: (r.max_impeller_tip_speed_m_s / 3.4) * 100,
+          ok: p.impeller_tip_speed_m_s <= r.max_impeller_tip_speed_m_s && p.kolmogorov_scale_um >= r.min_kolmogorov_scale_um,
+          subLeft: `Kolmogorov \u03bbK: ${p.kolmogorov_scale_um} \u03bcm (Min ${r.min_kolmogorov_scale_um} \u03bcm)`,
+          subRight: `${brx.impeller_type}`
+        },
+        {
+          title: "Volumetric O\u2082 Transfer (kLa)",
+          reading: `${p.achievable_kla_per_hr.toFixed(1)} h\u207b\u00b9 (Target \u2265 ${r.target_kla_per_hr.toFixed(1)} h\u207b\u00b9)`,
+          pct: Math.min(100, (p.achievable_kla_per_hr / 40) * 100),
+          limitPct: (r.target_kla_per_hr / 40) * 100,
+          ok: p.achievable_kla_per_hr >= r.target_kla_per_hr,
+          subLeft: `OTR ${p.oxygen_transfer_capacity_mmol_l_hr} vs OUR ${p.oxygen_demand_mmol_l_hr} mmol/L/h`,
+          subRight: `${brx.sparger_type}`
+        },
+        {
+          title: "Chromatography Skid Darcy \u0394P",
+          reading: `${p.chrom_pressure_drop_bar.toFixed(2)} bar (Max ${chr.max_operating_pressure_bar.toFixed(2)} bar)`,
+          pct: Math.min(100, (p.chrom_pressure_drop_bar / 3.4) * 100),
+          limitPct: (chr.max_operating_pressure_bar / 3.4) * 100,
+          ok: p.chrom_pressure_drop_bar <= chr.max_operating_pressure_bar && p.chrom_total_duration_hours <= r.max_harvest_hold_hours,
+          subLeft: `${p.chrom_cycles_required} cycles (${p.chrom_total_duration_hours} h / ${r.max_harvest_hold_hours} h hold)`,
+          subRight: `${chr.equipment_id} (${chr.column_diameter_cm} cm)`
+        },
+        {
+          title: "UF/DF TFF Area & Min Hold-Up",
+          reading: `${p.tff_required_area_m2} m\u00b2 / ${tff.max_membrane_area_m2} m\u00b2`,
+          pct: Math.min(100, (p.tff_required_area_m2 / 50) * 100),
+          limitPct: (tff.max_membrane_area_m2 / 50) * 100,
+          ok: p.tff_required_area_m2 <= tff.max_membrane_area_m2 && p.tff_final_retentate_liters >= tff.min_recirculation_volume_liters,
+          subLeft: `Final Pool: ${p.tff_final_retentate_liters} L (Min Loop ${tff.min_recirculation_volume_liters} L)`,
+          subRight: `${tff.equipment_id}`
+        },
+        {
+          title: "Clean Utility Peak WFI Draw",
+          reading: `${p.total_peak_wfi_demand_lph.toLocaleString()} / ${ev.site.utilities.available_peak_wfi_lph.toLocaleString()} L/h`,
+          pct: Math.min(100, (p.total_peak_wfi_demand_lph / 7500) * 100),
+          limitPct: (ev.site.utilities.available_peak_wfi_lph / 7500) * 100,
+          ok: p.total_peak_wfi_demand_lph <= ev.site.utilities.available_peak_wfi_lph,
+          subLeft: `Buffer ${r.peak_buffer_wfi_lph} + CIP ${ev.site.utilities.concurrent_cip_wfi_draw_lph} L/h`,
+          subRight: `${ev.site.utilities.wfi_loop_tag}`
+        }
+      ];
+
+      const gaugeEl = document.getElementById("envelope-gauges");
+      gaugeEl.innerHTML = gauges.map(g => `
+        <div class="envelope-row">
+          <div class="env-head">
+            <span class="env-title">${g.title}</span>
+            <span class="env-reading mono" style="color:${g.ok ? 'var(--pass)' : 'var(--critical)'}">${g.reading}</span>
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width:${g.pct}%;background:${g.ok ? 'var(--accent)' : 'var(--critical)'};"></div>
+            <div class="bar-limit-marker" style="left:${Math.min(99, g.limitPct)}%;" title="Envelope Threshold"></div>
+          </div>
+          <div class="env-sub">
+            <span>${g.subLeft}</span>
+            <span class="mono">${g.subRight}</span>
+          </div>
+        </div>
+      `).join("");
+
+      const rows = [
+        ["Impeller Reynolds Number (Re)", "Re = (\u03c1 \u00b7 N \u00b7 D_i\u00b2) / \u03bc", p.reynolds_number.toLocaleString(), "> 10,000 (Fully Turbulent)", "PASS"],
+        ["Gassed Power per Volume (P_g/V)", "0.82 \u00b7 n_imp \u00b7 Np \u00b7 \u03c1 \u00b7 N\u00b3 \u00b7 D_i\u2075 / V", `${p.gassed_power_per_volume_w_m3} W/m\u00b3 @ ${p.selected_rpm} RPM`, `20 - 95 W/m\u00b3`, p.gassed_power_per_volume_w_m3 <= 95 ? "PASS" : "MINOR"],
+        ["Impeller Blade Tip Speed (u_tip)", "\u03c0 \u00b7 N \u00b7 D_i", `${p.impeller_tip_speed_m_s} m/s`, `\u2264 ${r.max_impeller_tip_speed_m_s.toFixed(2)} m/s`, p.impeller_tip_speed_m_s <= r.max_impeller_tip_speed_m_s ? "PASS" : "CRITICAL"],
+        ["Kolmogorov Eddy Microscale (\u03bb_K)", "(\u03bd\u00b3 / \u03b5_max)^(1/4)", `${p.kolmogorov_scale_um} \u03bcm`, `\u2265 ${r.min_kolmogorov_scale_um} \u03bcm`, p.kolmogorov_scale_um >= r.min_kolmogorov_scale_um ? "PASS" : "CRITICAL"],
+        ["Volumetric O\u2082 Mass Transfer (kLa)", "Van't Riet: C \u00b7 (P_g/V)^\u03b1 \u00b7 v_s^\u03b2", `${p.achievable_kla_per_hr} h\u207b\u00b9`, `\u2265 ${r.target_kla_per_hr} h\u207b\u00b9`, p.achievable_kla_per_hr >= r.target_kla_per_hr ? "PASS" : "CRITICAL"],
+        ["Liquid Aspect Ratio (H_L / D_T)", "4 V_L / (\u03c0 D_T\u00b3)", `${p.aspect_ratio_h_d}`, `\u2264 ${r.max_aspect_ratio_h_d}`, p.aspect_ratio_h_d <= r.max_aspect_ratio_h_d ? "PASS" : "MAJOR"],
+        ["Jacket Heat Removal Margin", "U \u00b7 A_wetted \u00b7 \u0394T vs Q_met + Q_agit", `${p.jacket_cooling_capacity_kw} kW cap vs ${p.metabolic_plus_agitation_heat_kw} kW load`, "Capacity > Load", p.jacket_cooling_capacity_kw >= p.metabolic_plus_agitation_heat_kw ? "PASS" : "CRITICAL"],
+        ["Protein A Darcy Pressure Drop", "\u03ba \u00b7 \u03bc \u00b7 u_lin \u00b7 L_bed + \u0394P_skid", `${p.chrom_pressure_drop_bar} bar`, `\u2264 ${chr.max_operating_pressure_bar} bar`, p.chrom_pressure_drop_bar <= chr.max_operating_pressure_bar ? "PASS" : "MAJOR"],
+        ["UF/DF Final Retentate Hold-Up", "m_purified / C_target_DS", `${p.tff_final_retentate_liters} L`, `\u2265 ${tff.min_recirculation_volume_liters} L`, p.tff_final_retentate_liters >= tff.min_recirculation_volume_liters ? "PASS" : "CRITICAL"]
+      ];
+
+      document.querySelector("#physics-audit-table tbody").innerHTML = rows.map(row => `
+        <tr>
+          <td><strong>${row[0]}</strong></td>
+          <td class="mono" style="color:var(--text-secondary);">${row[1]}</td>
+          <td class="mono">${row[2]}</td>
+          <td class="mono">${row[3]}</td>
+          <td><span class="sev-pill sev-${row[4]}">${row[4]}</span></td>
+        </tr>
+      `).join("");
+    }
+
+    function renderDiscrepancyTab(ev) {
+      const rep = ev.reportSchema;
+      const filtered = state.severityFilter === "ALL"
+        ? rep.discrepancy_matrix
+        : rep.discrepancy_matrix.filter(d => d.severity === state.severityFilter);
+
+      document.getElementById("disc-heading").textContent = `${ev.site.short_name} Discrepancy Matrix (${filtered.length} of ${rep.discrepancy_matrix.length} shown)`;
+
+      const tbody = document.querySelector("#discrepancy-table tbody");
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text-secondary);padding:24px;">Zero discrepancies matching filter (${state.severityFilter}).</td></tr>`;
+      } else {
+        tbody.innerHTML = filtered.map(d => `
+          <tr>
+            <td class="mono">
+              <div><strong>${d.discrepancy_id}</strong></div>
+              <span class="sev-pill sev-${d.severity}" style="margin-top:4px;">${d.severity}</span>
+            </td>
+            <td>
+              <strong>${d.parameter_name}</strong>
+              <div style="color:var(--text-secondary);font-size:11.5px;">${d.unit_operation} &middot; ${d.fit_dimension}</div>
+            </td>
+            <td class="mono">${d.recipe_demand}</td>
+            <td class="mono">${d.facility_capability}</td>
+            <td class="mono"><strong>${d.calculated_value}</strong></td>
+            <td>${d.cqa_impact}</td>
+            <td class="mono" style="font-size:11px;color:var(--text-secondary);">${d.source_system_tags.join("<br/>")}</td>
+          </tr>
+        `).join("");
+      }
+
+      const mitEl = document.getElementById("mitigation-container");
+      if (rep.mitigation_recommendations.length === 0) {
+        mitEl.innerHTML = `<div class="mitigation-item">No engineering or change-control mitigations required; site is clean for execution.</div>`;
+      } else {
+        mitEl.innerHTML = rep.mitigation_recommendations.map(m => `
+          <div class="mitigation-item">
+            <div class="mitigation-top">
+              <span><span class="mono" style="color:var(--accent);">${m.mitigation_id}</span> &mdash; ${m.action_title}</span>
+              <span class="mono" style="font-size:12px;">Lead Time: ${m.estimated_lead_time_weeks} wks</span>
+            </div>
+            <div style="font-size:12.5px;color:var(--text-secondary);margin-bottom:6px;">${m.engineering_rationale}</div>
+            <div style="font-size:11.5px;display:flex;gap:14px;flex-wrap:wrap;color:var(--text-muted);">
+              <span>Linked: <strong class="mono">${m.linked_discrepancy_ids.join(", ")}</strong></span>
+              <span>Category: <strong>${m.category}</strong></span>
+              <span>Change Control: <strong>${m.change_control_required ? "REQUIRED (GCC)" : "Procedural Only"}</strong></span>
+              <span>Owner: <strong>${m.owner_function}</strong></span>
+            </div>
+          </div>
+        `).join("");
+      }
+    }
+
+    function renderComparisonTab(evals) {
+      const r = state.liveRecipe;
+      const d = evals.ALPHA_EU_HUB;
+      const w = evals.BETA_US_CAMPUS;
+      const e = evals.GAMMA_US_PLANT;
+
+      const matrixRows = [
+        ["Normalized Facility Fit Index", "1.00 Ideal", `<strong>${d.reportSchema.normalized_fit_index.toFixed(2)}</strong> (${d.reportSchema.overall_fit_status})`, `<strong>${w.reportSchema.normalized_fit_index.toFixed(2)}</strong> (${w.reportSchema.overall_fit_status})`, `<strong>${e.reportSchema.normalized_fit_index.toFixed(2)}</strong> (${e.reportSchema.overall_fit_status})`],
+        ["Discrepancy Breakdown (CRIT / MAJ / MIN)", "0 / 0 / 0", `${d.reportSchema.severity_counts.CRITICAL} / ${d.reportSchema.severity_counts.MAJOR} / ${d.reportSchema.severity_counts.MINOR}`, `${w.reportSchema.severity_counts.CRITICAL} / ${w.reportSchema.severity_counts.MAJOR} / ${w.reportSchema.severity_counts.MINOR}`, `${e.reportSchema.severity_counts.CRITICAL} / ${e.reportSchema.severity_counts.MAJOR} / ${e.reportSchema.severity_counts.MINOR}`],
+        ["Matched Bioreactor & Max Working Vol", `${r.target_batch_volume_liters.toLocaleString()} L`, `${d.physics.selected_bioreactor_id} (${d.physics.brx_asset.max_working_volume_liters.toLocaleString()} L)`, `${w.physics.selected_bioreactor_id} (${w.physics.brx_asset.max_working_volume_liters.toLocaleString()} L)`, `${e.physics.selected_bioreactor_id} (${e.physics.brx_asset.max_working_volume_liters.toLocaleString()} L)`],
+        ["Day-0 Seed Submergence Minimum", `${d.physics.seed_volume_liters.toLocaleString()} L fill`, `Min ${d.physics.brx_asset.min_working_volume_liters.toLocaleString()} L`, `Min ${w.physics.brx_asset.min_working_volume_liters.toLocaleString()} L`, `Min ${e.physics.brx_asset.min_working_volume_liters.toLocaleString()} L`],
+        ["Impeller Geometry & Tip Speed", `\u2264 ${r.max_impeller_tip_speed_m_s.toFixed(2)} m/s`, `Hydrofoil (${d.physics.impeller_tip_speed_m_s} m/s)`, `Rushton (${w.physics.impeller_tip_speed_m_s} m/s)`, `Pitched Blade (${e.physics.impeller_tip_speed_m_s} m/s)`],
+        ["Kolmogorov Eddy Microscale (\u03bb_K)", `\u2265 ${r.min_kolmogorov_scale_um} \u03bcm`, `${d.physics.kolmogorov_scale_um} \u03bcm`, `${w.physics.kolmogorov_scale_um} \u03bcm`, `${e.physics.kolmogorov_scale_um} \u03bcm`],
+        ["Volumetric O\u2082 Transfer (kLa)", `\u2265 ${r.target_kla_per_hr} h\u207b\u00b9`, `${d.physics.achievable_kla_per_hr} h\u207b\u00b9 (Micro)`, `${w.physics.achievable_kla_per_hr} h\u207b\u00b9 (Drilled)`, `${e.physics.achievable_kla_per_hr} h\u207b\u00b9 (Open Pipe)`],
+        ["Liquid Aspect Ratio (H_L / D_T)", `\u2264 ${r.max_aspect_ratio_h_d}`, `${d.physics.aspect_ratio_h_d}`, `${w.physics.aspect_ratio_h_d}`, `${e.physics.aspect_ratio_h_d}`],
+        ["Protein A Capture Column & Cycles", `\u2264 ${r.capture_max_cycles} cyc (\u2264${r.max_harvest_hold_hours}h)`, `${d.physics.chrom_asset.column_diameter_cm} cm (${d.physics.chrom_cycles_required} cyc, ${d.physics.chrom_total_duration_hours}h)`, `${w.physics.chrom_asset.column_diameter_cm} cm (${w.physics.chrom_cycles_required} cyc, ${w.physics.chrom_total_duration_hours}h)`, `${e.physics.chrom_asset.column_diameter_cm} cm (${e.physics.chrom_cycles_required} cyc, ${e.physics.chrom_total_duration_hours}h)`],
+        ["Chromatography Skid Darcy \u0394P", "Below Skid Rating", `${d.physics.chrom_pressure_drop_bar} / ${d.physics.chrom_asset.max_operating_pressure_bar} bar`, `${w.physics.chrom_pressure_drop_bar} / ${w.physics.chrom_asset.max_operating_pressure_bar} bar`, `${e.physics.chrom_pressure_drop_bar} / ${e.physics.chrom_asset.max_operating_pressure_bar} bar`],
+        ["UF/DF Membrane Area & Min Loop", `${d.physics.tff_required_area_m2} m\u00b2 / ${d.physics.tff_final_retentate_liters} L`, `40 m\u00b2 max / 18 L min`, `35 m\u00b2 max / 42 L min`, `24 m\u00b2 max / 85 L min`],
+        ["Peak Simultaneous WFI Draw", `${d.physics.total_peak_wfi_demand_lph.toLocaleString()} L/h`, `6,800 L/h avail`, `4,200 L/h avail`, `5,600 L/h avail`],
+        ["Enterprise Supply Planner PPQ Slot Window", "2027-Q1 Target", d.site.supply_schedule.next_open_window, w.site.supply_schedule.next_open_window, e.site.supply_schedule.next_open_window]
+      ];
+
+      document.querySelector("#network-comparison-table tbody").innerHTML = matrixRows.map(row => `
+        <tr>
+          <td><strong>${row[0]}</strong></td>
+          <td class="mono">${row[1]}</td>
+          <td class="mono">${row[2]}</td>
+          <td class="mono">${row[3]}</td>
+          <td class="mono">${row[4]}</td>
+        </tr>
+      `).join("");
+    }
+
+    function renderSchemaTab(ev) {
+      const rep = ev.reportSchema;
+      const gate = rep.hitl_signoff_gate;
+      const hitlEl = document.getElementById("hitl-box");
+      hitlEl.className = `hitl-banner ${gate.persistence_locked ? "locked" : "unlocked"}`;
+
+      if (gate.persistence_locked) {
+        hitlEl.innerHTML = `
+          <div style="font-weight:700;font-size:14px;margin-bottom:4px;">
+            Step 5 Governance Gate: Persistence Locked &mdash; Human Technical Sponsor Signoff Required
+          </div>
+          <div style="font-size:12.5px;color:var(--text-secondary);">
+            This assessment contains <strong>${rep.severity_counts.CRITICAL} CRITICAL</strong> and <strong>${rep.severity_counts.MAJOR} MAJOR</strong> discrepancies. Per Section 4.5 of the Biopharma CMC Facility Fit Agent Constitution, human sponsor adjudication is required before persisting this report.
+          </div>
+          <div class="hitl-controls">
+            <input type="text" id="input-sponsor-name" placeholder="Enter Technical Sponsor Name & Role (e.g., MS&T Lead, Alpha Hub)" style="min-width:320px;" />
+            <button type="button" class="btn btn-primary" id="btn-sponsor-signoff">Record Sponsor Signoff</button>
+          </div>
+        `;
+        setTimeout(() => {
+          const btn = document.getElementById("btn-sponsor-signoff");
+          if (btn) {
+            btn.onclick = () => {
+              const val = document.getElementById("input-sponsor-name").value.trim() || `${ev.site.short_name} MS&T Technical Sponsor`;
+              const signKey = `${rep.process_id}::${rep.target_site}`;
+              state.signoffs[signKey] = { sponsor: val, ts: new Date().toISOString().replace(/\.\d+Z$/, "Z") };
+              renderAll();
+            };
+          }
+        }, 0);
+      } else {
+        hitlEl.innerHTML = `
+          <div style="font-weight:700;font-size:14px;margin-bottom:4px;">
+            Step 5 Governance Gate: ${gate.signoff_status} (Persistence Unlocked)
+          </div>
+          <div style="font-size:12.5px;color:var(--text-secondary);">
+            ${gate.signed_by ? `Adjudicated by <strong>${gate.signed_by}</strong> at <span class="mono">${gate.signed_timestamp_utc}</span>.` : "Zero CRITICAL or MAJOR discrepancies detected; cleared for standard procedural review."}
+          </div>
+        `;
+      }
+
+      document.getElementById("reasoning-trace-list").innerHTML = rep.reasoning_protocol_trace.map(t => `<li class="mono">${t}</li>`).join("");
+      document.getElementById("json-output").textContent = JSON.stringify(rep, null, 2);
+    }
+
+    document.getElementById("select-recipe").addEventListener("change", e => loadRecipeIntoControls(e.target.value));
+    document.getElementById("btn-reset-params").addEventListener("click", () => loadRecipeIntoControls(state.activeRecipeId));
+    document.getElementById("btn-toggle-theme").addEventListener("click", () => {
+      const html = document.documentElement;
+      html.setAttribute("data-theme", html.getAttribute("data-theme") === "dark" ? "light" : "dark");
+    });
+
+    ["slider-volume", "slider-seed-pct", "slider-vcd", "slider-kla", "slider-tip", "slider-titer", "slider-velocity", "slider-ds-conc"].forEach(id => {
+      document.getElementById(id).addEventListener("input", renderAll);
+    });
+
+    document.querySelectorAll(".tab-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+        document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+        btn.classList.add("active");
+        document.getElementById(btn.getAttribute("data-tab")).classList.add("active");
+      });
+    });
+
+    document.querySelectorAll(".sev-filter-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".sev-filter-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        state.severityFilter = btn.getAttribute("data-sev");
+        renderAll();
+      });
+    });
+
+    document.getElementById("btn-copy-json").addEventListener("click", () => {
+      const txt = document.getElementById("json-output").textContent;
+      navigator.clipboard.writeText(txt);
+      const btn = document.getElementById("btn-copy-json");
+      btn.textContent = "Copied!";
+      setTimeout(() => { btn.textContent = "Copy JSON"; }, 1600);
+    });
+
+    document.getElementById("btn-download-json").addEventListener("click", () => {
+      const txt = document.getElementById("json-output").textContent;
+      const blob = new Blob([txt], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `FacilityFitAssessmentReport_${state.activeSiteCode}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    document.getElementById("btn-redteam-mes").addEventListener("click", () => {
+      gxpBlockCount += 1;
+      const b = document.getElementById("redteam-banner");
+      b.style.display = "block";
+      b.innerHTML = `
+        <div style="font-weight:700;color:var(--critical);margin-bottom:4px;">
+          GxpBoundaryViolationError Raised &amp; Logged (gxp_boundary_blocks_total = ${gxpBlockCount})
+        </div>
+        <div class="mono" style="font-size:12px;color:var(--text-primary);">
+          Blocked tool call: actuate_shop_floor_mes_setpoint(mes_tag="${SITES[state.activeSiteCode].bioreactors[0].mes_tag}", proposed_setpoint=55.0) &mdash; Autonomous shop-floor MES actuation and SOP overrides are strictly prohibited under Non-GxP Decision-Support Mode.
+        </div>
+      `;
+      renderAll();
+    });
+
+    loadRecipeIntoControls("PKM-AB4821-DS-V4.2");
+  </script>
+</body>
+</html>

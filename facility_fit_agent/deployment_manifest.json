@@ -1,0 +1,61 @@
+{
+  "service_name": "biopharma-cmc-continuous-facility-fit-agent",
+  "version": "1.2.0",
+  "runtime_platform": {
+    "google_cloud_target": "Vertex AI Agent Engine / Cloud Run Enterprise",
+    "local_cli_entrypoint": "python3 main.py",
+    "python_typing_enforcement": "pytype_strict"
+  },
+  "gxp_classification": {
+    "regulatory_mode": "NON_GXP_DECISION_SUPPORT",
+    "frameworks": [
+      "FDA CDER/CBER AI in Drug Manufacturing Discussion Framework",
+      "21 CFR Part 11 / EU GMP Annex 11 Electronic Audit Trail Alignment",
+      "ICH Q8/Q9/Q10 Quality Risk Management"
+    ],
+    "hitl_policy": "MANDATORY_TECHNICAL_SPONSOR_SIGNOFF_ON_MAJOR_OR_CRITICAL"
+  },
+  "security_controls": {
+    "autonomous_mes_write_disabled": true,
+    "sop_override_disabled": true,
+    "vpc_service_controls_enforced": true,
+    "vpc_perimeter": "biopharma-cmc-advisory-restricted-perimeter",
+    "cmek_encryption": "projects/biopharma-cmc-demo/locations/us-east4/keyRings/gxp-advisory/cryptoKeys/facility-fit-key"
+  },
+  "enterprise_connectors": [
+    {
+      "system": "Enterprise PKM",
+      "access_mode": "READ_ONLY",
+      "iam_principal": "sa-pkm-reader@biopharma-cmc-demo.iam.gserviceaccount.com"
+    },
+    {
+      "system": "Plant MES & Process Historian",
+      "access_mode": "READ_ONLY_WRITE_LOCKED",
+      "iam_principal": "sa-mes-envelope-reader@biopharma-cmc-demo.iam.gserviceaccount.com"
+    },
+    {
+      "system": "Enterprise LIMS",
+      "access_mode": "READ_ONLY",
+      "iam_principal": "sa-lims-method-status@biopharma-cmc-demo.iam.gserviceaccount.com"
+    },
+    {
+      "system": "Enterprise Supply Planner Supply Planning",
+      "access_mode": "READ_ONLY",
+      "iam_principal": "sa-supply_schedule-slot-reader@biopharma-cmc-demo.iam.gserviceaccount.com"
+    }
+  ],
+  "observability_export": {
+    "tracing_protocol": "OpenTelemetry Span Exporter -> Google Cloud Trace",
+    "metrics_sink": "Google Cloud Managed Service for Prometheus",
+    "audit_ledger_sink": "BigQuery Immutable WORM Dataset (ALCOA+ SHA-256 Hash-Chained)"
+  },
+  "ci_cd_pipeline": {
+    "presubmit_build_and_typecheck": "python3 -m unittest discover -s tests -v",
+    "release_gates": [
+      "GATE-01-PHYSICS-GOLDEN",
+      "GATE-02-GXP-REDTEAM",
+      "GATE-03-SCHEMA-HITL",
+      "GATE-04-ALCOA-LEDGER"
+    ]
+  }
+}

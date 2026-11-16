@@ -1,0 +1,11 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "biopharma-cmc-facility-fit-agent"
+version = "1.2.0"
+description = "GxP-aware deterministic bioprocess CMC continuous facility fit decision-support engine"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
