@@ -13,7 +13,8 @@ storage:
 """
 
 import asyncio
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
+import contextlib
 import datetime
 import json
 import os
@@ -141,15 +142,20 @@ class AsyncSqliteDatabaseBackend:
     """Returns filesystem path of the persistent SQLite database."""
     return self._db_path
 
-  def _connect(self) -> sqlite3.Connection:
-    """Opens a WAL-enabled SQLite connection with row dictionary access."""
+  @contextlib.contextmanager
+  def _connect(self) -> Iterator[sqlite3.Connection]:
+    """Opens, commits or rolls back, and closes a WAL SQLite connection."""
     self._db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(self._db_path), timeout=30.0)
     conn.row_factory = sqlite3.Row
-    conn.execute('PRAGMA journal_mode=WAL;')
-    conn.execute('PRAGMA synchronous=NORMAL;')
-    conn.execute('PRAGMA foreign_keys=ON;')
-    return conn
+    try:
+      conn.execute('PRAGMA journal_mode=WAL;')
+      conn.execute('PRAGMA synchronous=NORMAL;')
+      conn.execute('PRAGMA foreign_keys=ON;')
+      with conn:
+        yield conn
+    finally:
+      conn.close()
 
   async def initialize_schema(self) -> None:
     """Creates persistent relational tables and indexes asynchronously."""
