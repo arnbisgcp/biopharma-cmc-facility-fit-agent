@@ -728,9 +728,10 @@ class AsyncFirestoreDatabaseBackend:
   async def _get_client(self) -> Any:
     """Lazily initializes `google.cloud.firestore.AsyncClient`."""
     if self._client is None:
-      from google.cloud import firestore  # type: ignore
+      import importlib
 
-      self._client = firestore.AsyncClient(project=self._project_id or None)
+      fs_mod = importlib.import_module("google.cloud.firestore")
+      self._client = fs_mod.AsyncClient(project=self._project_id or None)
     return self._client
 
   async def initialize_schema(self) -> None:
@@ -753,5 +754,6 @@ def create_memory_backend(
   """Factory selecting configured persistent database backend."""
   backend_kind = os.environ.get('MEMORY_BACKEND', 'sqlite').lower()
   if backend_kind == 'firestore':
-    return AsyncFirestoreDatabaseBackend()  # type: ignore[return-value]
+    fs_backend: Any = AsyncFirestoreDatabaseBackend()
+    return fs_backend
   return AsyncSqliteDatabaseBackend(db_path=db_path)
